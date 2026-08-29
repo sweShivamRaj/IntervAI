@@ -9,8 +9,7 @@ async function start() {
   try {
     await connectDB();
   } catch (err) {
-    console.warn(`MongoDB connection failed: ${err.message}`);
-    console.warn('API is starting anyway. /api/health will work; DB routes need MongoDB.');
+    console.warn('MongoDB connection failed. API is starting; data routes will return 503 until MongoDB is available.');
   }
 
   app.listen(port, () => {

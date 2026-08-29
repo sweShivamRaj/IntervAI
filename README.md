@@ -50,7 +50,7 @@ University Software Engineering project — a working full-stack web app where c
 cd backend
 cp .env.example .env
 npm install
-npm run seed    # optional once MongoDB is up: creates admin@interview.local / Admin@123
+npm run seed    # optional once MongoDB is up; uses ADMIN_EMAIL/ADMIN_PASSWORD
 npm run dev     # http://localhost:5000
 ```
 
@@ -77,11 +77,9 @@ Vite proxies `/api` to the backend during development.
 - Topic difficulty is isolated so weak DSA performance does not lower JavaScript difficulty
 - Each question’s topic, difficulty, and score are stored in the interview progression
 
-## Demo accounts
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@interview.local | Admin@123 |
-| Candidate | register via UI | — |
+To create an administrator, set `ADMIN_EMAIL` and a strong, unique
+`ADMIN_PASSWORD` in `backend/.env`, then run `npm run seed`. Do not commit or
+reuse those credentials. Candidates should register through the UI.
 
 ## AI configuration
 Question generation and answer evaluation are backend-only and configurable through `backend/.env`:
@@ -95,6 +93,26 @@ AI output is validated before persistence. Provider errors or invalid responses
 fall back to the built-in question bank or a safe heuristic evaluation so an
 interview can continue. Candidate answers are persisted before evaluation, and
 the final weighted score is always calculated by the backend.
+
+## Production security recommendations
+
+- Set `NODE_ENV=production`, use a long random `JWT_SECRET`, and set `CLIENT_URL`
+  to the exact HTTPS frontend origin(s). Never use example values in production.
+- Keep `MONGODB_URI`, `JWT_SECRET`, `ADMIN_PASSWORD`, and `AI_API_KEY` in a
+  deployment secret manager or environment only. Do not place them in Vite
+  `VITE_*` variables or ship them to browsers.
+- Use TLS for the API, frontend, MongoDB connection, and AI provider. Restrict
+  MongoDB network access and use a least-privilege database user.
+- Rotate JWT, admin, and AI credentials periodically. Use separate admin
+  accounts for operators and do not share seed credentials.
+- Run `npm audit --prefix backend` and `npm audit --prefix frontend` in CI and
+  review high/critical findings before deployment.
+- Run behind a reverse proxy/WAF, preserve rate limiting, monitor authentication
+  failures and database/AI errors, and never log passwords, bearer tokens,
+  request bodies, or provider responses.
+- JWTs are stored in browser storage by this MVP. For public production use,
+  prefer short-lived access tokens with secure, HttpOnly, SameSite cookie-based
+  refresh tokens and CSRF protection.
 
 Phase 6 checks can be run with:
 
@@ -113,9 +131,17 @@ visualizations. `/history` lists completed and in-progress sessions, while the
 dashboard and `/analytics` aggregate completed interviews over time.
 
 ## Documentation
-- [Architecture](docs/ARCHITECTURE.md)
-- [API contracts](docs/API_CONTRACTS.md)
-- [Data models](docs/DATA_MODELS.md)
+- [Architecture](docs/architecture.md)
+- [API documentation](docs/api-documentation.md)
+- [Database design](docs/database-design.md)
+- [Software requirements specification](docs/srs.md)
+- [Functional requirements](docs/functional-requirements.md)
+- [Non-functional requirements](docs/non-functional-requirements.md)
+- [Testing](docs/testing.md)
+- [Mermaid diagrams](docs/diagrams.md)
+- [Security](docs/security.md)
+- [Risk analysis](docs/risk-analysis.md)
+- [Future scope](docs/future-scope.md)
 - [AI boundaries](docs/AI_BOUNDARIES.md)
 - [Roadmap](ROADMAP.md)
 

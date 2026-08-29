@@ -4,6 +4,15 @@ const User = require('../models/User');
 const config = require('../config/env');
 
 async function seed() {
+  if (!config.admin.email || !config.admin.password) {
+    console.error('Set ADMIN_EMAIL and ADMIN_PASSWORD in backend/.env before seeding.');
+    process.exit(1);
+  }
+  if (config.admin.password.length < 8) {
+    console.error('ADMIN_PASSWORD must be at least 8 characters.');
+    process.exit(1);
+  }
+
   await connectDB();
 
   const existing = await User.findOne({ email: config.admin.email });

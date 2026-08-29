@@ -8,8 +8,13 @@ const {
 } = require('../services/adaptiveService');
 
 assert.equal(computeNextDifficulty(2, [85]), 3, '80+ should increase difficulty');
+assert.equal(computeNextDifficulty(2, [90]), 3, '90 should increase difficulty');
+assert.equal(computeNextDifficulty(2, [85]), 3, '85 should increase difficulty');
 assert.equal(computeNextDifficulty(2, [50, 79]), 2, '50-79 average should maintain difficulty');
+assert.equal(computeNextDifficulty(2, [70]), 2, '70 should maintain difficulty');
 assert.equal(computeNextDifficulty(2, [49]), 1, 'below 50 should decrease difficulty');
+assert.equal(computeNextDifficulty(2, [45]), 1, '45 should decrease difficulty');
+assert.equal(computeNextDifficulty(2, [20]), 1, '20 should decrease difficulty');
 
 assert.equal(computeNextDifficulty(1, [10]), 1, 'difficulty must not go below Easy');
 assert.equal(computeNextDifficulty(3, [100]), 3, 'difficulty must not go above Hard');

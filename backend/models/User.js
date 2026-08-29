@@ -23,7 +23,8 @@ const userSchema = new mongoose.Schema(
 
 userSchema.pre('save', async function hashPassword() {
   if (!this.isModified('password')) return;
-  this.password = await bcrypt.hash(this.password, 10);
+  const rounds = process.env.NODE_ENV === 'production' ? 12 : 10;
+  this.password = await bcrypt.hash(this.password, rounds);
 });
 
 userSchema.methods.comparePassword = function comparePassword(candidate) {

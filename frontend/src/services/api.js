@@ -19,7 +19,13 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => Promise.reject(error)
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem(TOKEN_KEY);
+      window.dispatchEvent(new Event('auth-expired'));
+    }
+    return Promise.reject(error);
+  }
 );
 
 export function getStoredToken() {

@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 export function Icon({ name, size = 18, className = '' }) {
   const paths = {
     arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
@@ -150,4 +152,105 @@ function scoreTier(score) {
 
 export function ButtonSpinner() {
   return <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent" />;
+}
+
+export function ConfirmDialog({
+  open,
+  title = 'Are you sure?',
+  description,
+  confirmLabel = 'Yes',
+  cancelLabel = 'Cancel',
+  onConfirm,
+  onCancel,
+  busy = false,
+}) {
+  const cancelRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const previouslyFocused = document.activeElement;
+    cancelRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape' && !busy) {
+        onCancel();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+      const dialog = event.currentTarget;
+      const focusable = dialog.querySelectorAll('button:not([disabled])');
+      if (!focusable.length) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    const dialog = document.getElementById('confirmation-dialog');
+    dialog?.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      dialog?.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus?.();
+    };
+  }, [busy, onCancel, open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-ink-900/45 px-4 py-8 backdrop-blur-[2px]"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onCancel();
+      }}
+    >
+      <div
+        id="confirmation-dialog"
+        className="w-full max-w-md rounded-3xl border border-ink-200 bg-white p-6 shadow-2xl sm:p-7"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirmation-dialog-title"
+        aria-describedby={description ? 'confirmation-dialog-description' : undefined}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start gap-4">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent-dark">
+            <Icon name="logout" size={20} />
+          </span>
+          <div>
+            <p className="eyebrow">Confirm action</p>
+            <h2 id="confirmation-dialog-title" className="mt-1 font-display text-2xl font-semibold tracking-[-0.02em] text-ink-900">
+              {title}
+            </h2>
+            {description && (
+              <p id="confirmation-dialog-description" className="mt-2 text-sm leading-6 text-ink-700">
+                {description}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button ref={cancelRef} type="button" className="btn-secondary justify-center" onClick={onCancel} disabled={busy}>
+            {cancelLabel}
+          </button>
+          <button type="button" className="btn-primary justify-center" onClick={onConfirm} disabled={busy}>
+            {busy ? <><ButtonSpinner /> Logging out…</> : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

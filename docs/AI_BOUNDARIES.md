@@ -3,8 +3,10 @@
 ## Principle
 The frontend never talks to the AI provider. The backend-only
 `backend/services/aiService.js` generates questions and
-`backend/services/evaluationService.js` evaluates answers. Both services return
-validated plain data and have no access to database models.
+`backend/services/evaluationService.js` evaluates answers. Provider calls
+return validated plain data and do not persist interview domain records. The
+fallback-question helper may query the managed fallback-question collection
+when a live database is available.
 
 ## Interface
 ```js

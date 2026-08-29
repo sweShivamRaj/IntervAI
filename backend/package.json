@@ -8,13 +8,16 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "seed": "node utils/seed.js",
+    "test": "npm run test:adaptive && npm run test:ai && npm run test:phase6 && npm run test:phase8 && npm run test:comprehensive",
     "test:adaptive": "node tests/adaptiveService.test.js",
     "test:adaptive:api": "node tests/adaptiveIntegration.test.js",
     "test:phase6": "node tests/phase6Evaluation.test.js",
     "test:phase6:api": "node tests/phase6Integration.test.js",
     "test:phase8": "node tests/phase8Analytics.test.js",
     "test:phase8:api": "node tests/phase8Integration.test.js",
-    "test:admin": "node tests/adminAuthorization.test.js"
+    "test:admin": "node tests/adminAuthorization.test.js",
+    "test:ai": "node tests/aiService.test.js",
+    "test:comprehensive": "node tests/comprehensiveIntegration.test.js"
   },
   "keywords": [
     "interview",
@@ -27,6 +30,8 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.4",
     "morgan": "^1.11.0"

@@ -18,7 +18,7 @@
 - [x] Axios API service + health client
 - [x] Clean folder structure (`layouts/`, `validators/`, flattened backend)
 - [x] `GET /api/health` with required response shape
-- [x] Frontend shell routes (placeholders; no auth UI yet)
+- [x] Frontend shell routes and authentication UI
 - [x] Frontend build + backend health verified
 
 ## Phase 2 — Interview Setup & Session Lifecycle

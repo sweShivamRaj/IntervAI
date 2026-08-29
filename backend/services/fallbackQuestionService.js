@@ -23,7 +23,9 @@ function difficultyLabel(value) {
 function cleanString(value, field, { min = 1, max = 200 } = {}) {
   const cleaned = String(value ?? '').trim();
   if (cleaned.length < min || cleaned.length > max) {
-    throw new Error(`${field} must be between ${min} and ${max} characters.`);
+    const error = new Error(`${field} must be between ${min} and ${max} characters.`);
+    error.code = 'INVALID_FALLBACK_QUESTION';
+    throw error;
   }
   return cleaned;
 }
@@ -39,13 +41,19 @@ function normalizeQuestionPayload(payload = {}, { partial = false } = {}) {
   }
   if (!partial || payload.difficulty !== undefined) {
     const difficulty = normalizeDifficulty(payload.difficulty, { required: true });
-    if (!difficulty) throw new Error('difficulty must be Easy, Medium, or Hard.');
+    if (!difficulty) {
+      const error = new Error('difficulty must be Easy, Medium, or Hard.');
+      error.code = 'INVALID_FALLBACK_QUESTION';
+      throw error;
+    }
     normalized.difficulty = difficulty;
   }
   if (!partial || payload.questionType !== undefined || payload.type !== undefined) {
     const questionType = String(payload.questionType || payload.type || 'conceptual').trim().toLowerCase();
     if (!QUESTION_TYPES.has(questionType)) {
-      throw new Error('questionType must be conceptual, scenario, coding, or design.');
+      const error = new Error('questionType must be conceptual, scenario, coding, or design.');
+      error.code = 'INVALID_FALLBACK_QUESTION';
+      throw error;
     }
     normalized.questionType = questionType;
   }
@@ -55,10 +63,14 @@ function normalizeQuestionPayload(payload = {}, { partial = false } = {}) {
       : String(payload.expectedConcepts || '').split(',');
     normalized.expectedConcepts = [...new Set(concepts.map((item) => String(item).trim()).filter(Boolean))];
     if (!normalized.expectedConcepts.length || normalized.expectedConcepts.length > 8) {
-      throw new Error('expectedConcepts must contain between 1 and 8 items.');
+      const error = new Error('expectedConcepts must contain between 1 and 8 items.');
+      error.code = 'INVALID_FALLBACK_QUESTION';
+      throw error;
     }
     if (normalized.expectedConcepts.some((item) => item.length > 100)) {
-      throw new Error('Each expected concept must be at most 100 characters.');
+      const error = new Error('Each expected concept must be at most 100 characters.');
+      error.code = 'INVALID_FALLBACK_QUESTION';
+      throw error;
     }
   }
 
@@ -125,7 +137,11 @@ async function createFallbackQuestion(payload) {
 async function updateFallbackQuestion(id, payload) {
   if (!mongoose.isValidObjectId(id)) throw new Error('Fallback question not found.');
   const normalized = normalizeQuestionPayload(payload, { partial: true });
-  if (!Object.keys(normalized).length) throw new Error('At least one question field is required.');
+  if (!Object.keys(normalized).length) {
+    const error = new Error('At least one question field is required.');
+    error.code = 'INVALID_FALLBACK_QUESTION';
+    throw error;
+  }
   const question = await FallbackQuestion.findByIdAndUpdate(id, normalized, {
     returnDocument: 'after',
     runValidators: true,

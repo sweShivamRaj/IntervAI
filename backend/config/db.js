@@ -4,7 +4,9 @@ const { seedFallbackQuestions } = require('../services/fallbackQuestionService')
 
 async function connectDB() {
   mongoose.set('strictQuery', true);
-  await mongoose.connect(mongoUri);
+  await mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: 8000,
+  });
   await removeLegacyInterviewIndexes();
   try {
     await seedFallbackQuestions();

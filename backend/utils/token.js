@@ -2,11 +2,14 @@ const jwt = require('jsonwebtoken');
 const { jwtSecret, jwtExpiresIn } = require('../config/env');
 
 function signToken(userId) {
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET is not configured.');
+  }
   return jwt.sign({ id: userId }, jwtSecret, { expiresIn: jwtExpiresIn });
 }
 
 function sanitizeUser(user) {
-  const doc = user.toObject ? user.toObject() : user;
+  const doc = user.toObject ? user.toObject() : { ...user };
   return {
     id: doc._id,
     name: doc.name,

@@ -1,6 +1,19 @@
 const { asyncHandler, AppError } = require('../middleware/errorMiddleware');
 const adminService = require('../services/adminService');
 
+function adminInputError(error, fallback) {
+  if (error?.code === 'INVALID_FALLBACK_QUESTION') {
+    return new AppError(error.message, 400, 'VALIDATION_ERROR');
+  }
+  if (error?.code === 11000) {
+    return new AppError('A fallback question with this text already exists.', 400, 'DUPLICATE');
+  }
+  if (error?.name === 'CastError') {
+    return new AppError('Fallback question not found.', 404, 'INVALID_ID');
+  }
+  return new AppError(fallback, 500, 'INTERNAL_ERROR');
+}
+
 const dashboard = asyncHandler(async (req, res) => {
   const data = await adminService.getDashboard();
   res.json(data);
@@ -18,7 +31,7 @@ const listQuestions = asyncHandler(async (req, res) => {
   try {
     res.json({ questions: await adminService.listFallbackQuestions(req.query) });
   } catch (error) {
-    throw new AppError(error.message || 'Failed to list fallback questions.', 400);
+    throw adminInputError(error, 'Unable to load fallback questions.');
   }
 });
 
@@ -27,8 +40,7 @@ const createQuestion = asyncHandler(async (req, res) => {
     const question = await adminService.createFallbackQuestion(req.body);
     res.status(201).json({ question });
   } catch (error) {
-    if (error?.code === 11000) throw new AppError('A fallback question with this text already exists.', 400);
-    throw new AppError(error.message || 'Invalid fallback question.', 400);
+    throw adminInputError(error, 'Unable to create fallback question.');
   }
 });
 
@@ -37,8 +49,7 @@ const updateQuestion = asyncHandler(async (req, res) => {
     const question = await adminService.updateFallbackQuestion(req.params.id, req.body);
     res.json({ question });
   } catch (error) {
-    if (error?.code === 11000) throw new AppError('A fallback question with this text already exists.', 400);
-    throw new AppError(error.message || 'Invalid fallback question.', error.message === 'Fallback question not found.' ? 404 : 400);
+    throw adminInputError(error, 'Unable to update fallback question.');
   }
 });
 
@@ -47,7 +58,10 @@ const deleteQuestion = asyncHandler(async (req, res) => {
     const question = await adminService.deleteFallbackQuestion(req.params.id);
     res.json({ question, message: 'Fallback question deleted.' });
   } catch (error) {
-    throw new AppError(error.message || 'Fallback question not found.', 404);
+    if (error?.message === 'Fallback question not found.') {
+      throw new AppError('Fallback question not found.', 404, 'NOT_FOUND');
+    }
+    throw adminInputError(error, 'Unable to delete fallback question.');
   }
 });
 

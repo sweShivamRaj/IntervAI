@@ -24,6 +24,7 @@ const originalConfig = {
   apiKey: config.ai.apiKey,
   maxRetries: config.ai.maxRetries,
   baseUrl: config.ai.baseUrl,
+  timeoutMs: config.ai.timeoutMs,
 };
 const originalFetch = global.fetch;
 
@@ -114,6 +115,23 @@ async function run() {
   assert.equal(failed.safeMessage, SAFE_FAILURE_MESSAGE);
   assert.ok(Number.isFinite(failed.score), 'fallback should preserve a usable score');
 
+  config.ai.maxRetries = 0;
+  config.ai.timeoutMs = 1;
+  global.fetch = async (_url, options) => new Promise((_resolve, reject) => {
+    options.signal.addEventListener('abort', () => {
+      const timeoutError = new Error('The operation was aborted.');
+      timeoutError.name = 'AbortError';
+      reject(timeoutError);
+    }, { once: true });
+  });
+  const timedOut = await evaluateCandidateAnswer({
+    ...context,
+    candidateAnswer: 'The event loop handles asynchronous callbacks after I/O completes.',
+  });
+  assert.equal(timedOut.status, 'failed');
+  assert.equal(timedOut.safeMessage, SAFE_FAILURE_MESSAGE, 'timeout should use the safe fallback message');
+
+  config.ai.maxRetries = 1;
   let invalidAttempts = 0;
   global.fetch = async () => {
     invalidAttempts += 1;
@@ -159,5 +177,6 @@ run()
     config.ai.apiKey = originalConfig.apiKey;
     config.ai.maxRetries = originalConfig.maxRetries;
     config.ai.baseUrl = originalConfig.baseUrl;
+    config.ai.timeoutMs = originalConfig.timeoutMs;
     global.fetch = originalFetch;
   });

@@ -1,9 +1,13 @@
 require('dotenv').config();
 
+const nodeEnv = process.env.NODE_ENV || 'development';
+
 module.exports = {
-  port: process.env.PORT || 5000,
-  mongoUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/adaptive_interview',
-  jwtSecret: process.env.JWT_SECRET || 'dev_only_change_me',
+  nodeEnv,
+  isProduction: nodeEnv === 'production',
+  port: Number(process.env.PORT) || 5000,
+  mongoUri: process.env.MONGODB_URI || '',
+  jwtSecret: process.env.JWT_SECRET || '',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
   ai: {
@@ -15,7 +19,7 @@ module.exports = {
     maxRetries: Number(process.env.AI_MAX_RETRIES) || 2,
   },
   admin: {
-    email: process.env.ADMIN_EMAIL || 'admin@interview.local',
-    password: process.env.ADMIN_PASSWORD || 'Admin@123',
+    email: process.env.ADMIN_EMAIL || '',
+    password: process.env.ADMIN_PASSWORD || '',
   },
 };

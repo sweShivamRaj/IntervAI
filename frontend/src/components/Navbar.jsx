@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Icon, Logo } from './ui.jsx';
+import { ConfirmDialog, Icon, Logo } from './ui.jsx';
 
 const links = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -15,6 +15,8 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logoutPromptOpen, setLogoutPromptOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const isSession = location.pathname !== '/interview/setup' && /^\/interview\/[^/]+$/.test(location.pathname);
 
   useEffect(() => {
@@ -22,8 +24,14 @@ export default function Navbar() {
   }, [location.pathname]);
 
   async function handleLogout() {
-    await logout();
-    navigate('/login');
+    setLoggingOut(true);
+    try {
+      await logout();
+      navigate('/login');
+    } finally {
+      setLoggingOut(false);
+      setLogoutPromptOpen(false);
+    }
   }
 
   if (isSession && user) {
@@ -43,7 +51,8 @@ export default function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-ink-100/80 bg-white/90 backdrop-blur-xl">
+    <>
+      <header className="sticky top-0 z-40 border-b border-ink-100/80 bg-white/90 backdrop-blur-xl">
       <div className="mx-auto flex min-h-[4.5rem] max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
         <Link to={user ? '/dashboard' : '/'} aria-label="AdaptiveInterview home">
           <Logo />
@@ -62,7 +71,7 @@ export default function Navbar() {
               <div className="ml-3 flex items-center gap-2 border-l border-ink-100 pl-4">
                 <Avatar name={user.name} />
                 <span className="max-w-28 truncate text-sm font-semibold text-ink-800">{user.name}</span>
-                <button type="button" onClick={handleLogout} className="ml-1 rounded-lg p-2 text-ink-700 transition-colors hover:bg-ink-50 hover:text-ink-900" aria-label="Log out">
+                <button type="button" onClick={() => setLogoutPromptOpen(true)} className="ml-1 rounded-lg p-2 text-ink-700 transition-colors hover:bg-ink-50 hover:text-ink-900" aria-label="Log out">
                   <Icon name="logout" size={17} />
                 </button>
               </div>
@@ -80,7 +89,7 @@ export default function Navbar() {
                 {links.map((link) => <NavItem key={link.to} {...link} mobile />)}
                 {user.role === 'admin' && <NavItem to="/admin" label="Admin" icon="shield" mobile />}
                 <Link to="/interview/setup" className="btn-primary mt-2 w-full"><Icon name="plus" size={16} /> Start new interview</Link>
-                <button type="button" onClick={handleLogout} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">Log out</button>
+                <button type="button" onClick={() => setLogoutPromptOpen(true)} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">Log out</button>
               </nav>
             )}
           </>
@@ -91,7 +100,16 @@ export default function Navbar() {
           </nav>
         )}
       </div>
-    </header>
+      </header>
+      <ConfirmDialog
+        open={logoutPromptOpen}
+        title="Log out of your workspace?"
+        description="Your interview progress is saved. You can sign back in whenever you are ready."
+        onCancel={() => setLogoutPromptOpen(false)}
+        onConfirm={handleLogout}
+        busy={loggingOut}
+      />
+    </>
   );
 }
 

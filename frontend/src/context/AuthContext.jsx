@@ -48,6 +48,16 @@ export function AuthProvider({ children }) {
     };
   }, [token]);
 
+  useEffect(() => {
+    function handleExpiredSession() {
+      setStoredToken(null);
+      setToken(null);
+      setUser(null);
+    }
+    window.addEventListener('auth-expired', handleExpiredSession);
+    return () => window.removeEventListener('auth-expired', handleExpiredSession);
+  }, []);
+
   const value = useMemo(
     () => ({
       user,

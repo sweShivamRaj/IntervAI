@@ -183,7 +183,7 @@ function buildMockQuestion(context) {
   const selected = templates[(questionNumber - 1) % templates.length];
 
   return {
-    question: `${selected.question} This is interview question ${questionNumber}.`,
+    question: selected.question,
     topic,
     difficulty: context.difficulty,
     type: selected.type,

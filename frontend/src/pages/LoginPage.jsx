@@ -5,10 +5,11 @@ import AuthShell from '../components/AuthShell.jsx';
 import { Alert, ButtonSpinner, Icon } from '../components/ui.jsx';
 
 export default function LoginPage() {
-  const { login, user, loading } = useAuth();
+  const { login, logout, user, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({ email: '', password: '' });
+  const [selectedRole, setSelectedRole] = useState('candidate');
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -33,6 +34,15 @@ export default function LoginPage() {
     setBusy(true);
     try {
       const signedIn = await login(form.email.trim(), form.password);
+      if (signedIn.role !== selectedRole) {
+        await logout();
+        setError(
+          selectedRole === 'admin'
+            ? 'This account does not have administrator access. Choose Candidate or use an admin account.'
+            : 'This is an administrator account. Choose Admin to continue.'
+        );
+        return;
+      }
       const fallback = homeFor(signedIn);
       const requested = location.state?.from;
       const next = requested && (signedIn.role === 'admin' || requested !== '/admin') ? requested : fallback;
@@ -52,6 +62,27 @@ export default function LoginPage() {
       footer={<>New to AdaptiveInterview? <Link className="font-bold text-accent-dark hover:underline" to="/register">Create an account <Icon name="arrow" size={14} className="inline" /></Link></>}
     >
       <form onSubmit={onSubmit} className="space-y-5" noValidate>
+        <fieldset>
+          <legend className="mb-2 block text-sm font-bold text-ink-900">Sign in as</legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <RoleChoice
+              value="candidate"
+              selectedRole={selectedRole}
+              onSelect={setSelectedRole}
+              icon="user"
+              title="Candidate"
+              description="Practice interviews and view your results"
+            />
+            <RoleChoice
+              value="admin"
+              selectedRole={selectedRole}
+              onSelect={setSelectedRole}
+              icon="shield"
+              title="Admin"
+              description="Manage users, interviews, and questions"
+            />
+          </div>
+        </fieldset>
         <Field label="Email address" id="login-email" error={fieldErrors.email}>
           <input id="login-email" className="input-field" type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'login-email-error' : undefined} />
         </Field>
@@ -67,6 +98,30 @@ export default function LoginPage() {
         </button>
       </form>
     </AuthShell>
+  );
+}
+
+function RoleChoice({ value, selectedRole, onSelect, icon, title, description }) {
+  const selected = selectedRole === value;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(value)}
+      aria-pressed={selected}
+      className={`flex items-start gap-3 rounded-xl border p-3 text-left transition ${
+        selected
+          ? 'border-accent bg-accent-soft ring-2 ring-accent/20'
+          : 'border-ink-200 bg-white hover:border-accent/60 hover:bg-ink-50'
+      }`}
+    >
+      <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg ${selected ? 'bg-accent text-white' : 'bg-ink-100 text-ink-700'}`}>
+        <Icon name={icon} size={16} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-bold text-ink-900">{title}</span>
+        <span className="mt-0.5 block text-xs leading-4 text-ink-700">{description}</span>
+      </span>
+    </button>
   );
 }
 
