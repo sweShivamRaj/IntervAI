@@ -265,6 +265,15 @@ const QUESTION_BANK = [
     questionText: 'Explain what happens when a browser loads a web page over HTTPS.',
     expectedConcepts: ['DNS', 'TCP', 'TLS', 'HTTP'],
   },
+
+  {
+  topic: 'Computer Networks',
+  difficulty: 2,
+  questionType: 'conceptual',
+  questionText: 'Explain how TCP establishes a reliable connection between a client and a server using the three-way handshake. Why is each step necessary?',
+  expectedConcepts: ['TCP', 'Three-Way Handshake', 'SYN', 'SYN-ACK', 'ACK', 'Reliable Connection'],
+},
+
   {
     topic: 'Computer Networks',
     difficulty: 3,
