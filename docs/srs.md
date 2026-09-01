@@ -5,7 +5,7 @@
 ### 1.1 Purpose
 
 This SRS specifies the requirements and operating boundaries of the
-AI-Powered Adaptive Interview Platform. It is intended for students,
+IntervAI platform. It is intended for students,
 supervisors, developers, testers, and evaluators of the university project.
 
 ### 1.2 Product perspective

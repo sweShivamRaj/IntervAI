@@ -2,11 +2,11 @@
 
 ## Project title
 
-**AI-Powered Adaptive Interview Platform**
+**IntervAI**
 
 ## Summary
 
-The AI-Powered Adaptive Interview Platform is a university Software Engineering
+The IntervAI platform is a university Software Engineering
 project for structured interview practice. A candidate creates a profile,
 selects a target role and skills, answers a sequence of interview questions,
 and receives a backend-generated report. The platform uses an AI provider when

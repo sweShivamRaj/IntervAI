@@ -1,7 +1,7 @@
 {
-  "name": "adaptive-interview-backend",
+  "name": "intervai-backend",
   "version": "1.0.0",
-  "description": "API for AI-Powered Adaptive Interview Platform",
+  "description": "API for IntervAI",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {

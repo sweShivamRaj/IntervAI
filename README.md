@@ -1,4 +1,4 @@
-# AI-Powered Adaptive Interview Platform
+# IntervAI
 
 University Software Engineering project — a working full-stack web app where candidates practice technical interviews with a backend-owned interview engine and configurable AI assistance.
 

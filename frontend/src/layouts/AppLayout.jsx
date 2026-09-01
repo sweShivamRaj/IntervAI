@@ -14,7 +14,7 @@ export default function AppLayout() {
       </main>
       {!isInterviewSession && <footer className="border-t border-ink-100 bg-white/60">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-xs text-ink-700 sm:px-6">
-          <span>AdaptiveInterview · Structured practice for better interviews.</span>
+          <span>IntervAI · Structured practice for better interviews.</span>
           <span>Built for focused preparation.</span>
         </div>
       </footer>}

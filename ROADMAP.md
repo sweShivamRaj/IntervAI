@@ -1,4 +1,4 @@
-# Development Roadmap — AI-Powered Adaptive Interview Platform
+# Development Roadmap — IntervAI
 
 ## Phase 0 — Project Foundation ✅
 - [x] Inspect workspace and define architecture

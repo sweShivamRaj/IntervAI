@@ -33,7 +33,7 @@ flowchart uses actors and a system boundary to express the same relationships.
 flowchart LR
     Candidate((Candidate))
     Admin((Administrator))
-    subgraph Platform[AI-Powered Adaptive Interview Platform]
+    subgraph Platform[IntervAI]
         UC1([Register / sign in])
         UC2([Manage profile])
         UC3([Configure interview])
@@ -58,7 +58,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    C[Candidate] -->|Profile, setup, answers| P((Adaptive Interview Platform))
+    C[Candidate] -->|Profile, setup, answers| P((IntervAI))
     A[Administrator] -->|Admin requests and question updates| P
     P -->|Questions, evaluations, reports| C
     P -->|Statistics, lists, operation results| A

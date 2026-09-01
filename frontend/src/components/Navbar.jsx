@@ -54,7 +54,7 @@ export default function Navbar() {
     <>
       <header className="sticky top-0 z-40 border-b border-ink-100/80 bg-white/90 backdrop-blur-xl">
       <div className="mx-auto flex min-h-[4.5rem] max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link to={user ? '/dashboard' : '/'} aria-label="AdaptiveInterview home">
+        <Link to={user ? '/dashboard' : '/'} aria-label="IntervAI home">
           <Logo />
         </Link>
 

@@ -55,7 +55,7 @@ export function Logo({ compact = false, inverse = false }) {
       </span>
       {!compact && (
         <span className={`font-display text-[1.15rem] font-semibold tracking-[-0.02em] ${inverse ? 'text-white' : 'text-ink-900'}`}>
-          Adaptive<span className={inverse ? 'text-accent-soft' : 'text-accent'}>Interview</span>
+          Interv<span className={inverse ? 'text-accent-soft' : 'text-accent'}>AI</span>
         </span>
       )}
     </span>

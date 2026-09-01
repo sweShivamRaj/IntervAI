@@ -51,7 +51,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     const previous = document.title;
-    document.title = 'Admin dashboard · AdaptiveInterview';
+    document.title = 'Admin dashboard · IntervAI';
     return () => {
       document.title = previous;
     };

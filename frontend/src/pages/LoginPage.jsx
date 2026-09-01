@@ -59,7 +59,7 @@ export default function LoginPage() {
       eyebrow="Welcome back"
       title="Sign in to your workspace"
       description="Pick up your practice where you left off and keep building interview confidence."
-      footer={<>New to AdaptiveInterview? <Link className="font-bold text-accent-dark hover:underline" to="/register">Create an account <Icon name="arrow" size={14} className="inline" /></Link></>}
+      footer={<>New to AdaptiveInterview? <Link className="font-bold text-accent-dark hover:underline transition-all active:scale-[0.97]" to="/register">Create an account <Icon name="arrow" size={14} className="inline" /></Link></>}
     >
       <form onSubmit={onSubmit} className="space-y-5" noValidate>
         <fieldset>
