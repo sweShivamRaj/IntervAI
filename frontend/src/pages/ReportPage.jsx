@@ -14,6 +14,7 @@ import {
 import { getDashboard, getReport } from '../services/interviewApi.js';
 import { difficultyLabel, formatDate } from '../utils/format.js';
 import { Alert, Icon, ScoreBadge, ScoreRing, Skeleton } from '../components/ui.jsx';
+import { FadeIn, StaggerList, StaggerItem, ScrollReveal, AnimatedPresenceWrapper } from '../components/motion.jsx';
 
 export default function ReportPage() {
   const { id } = useParams();
@@ -58,10 +59,12 @@ export default function ReportPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-xl text-center" role="alert">
-        <Alert>{error}</Alert>
+        <AnimatedPresenceWrapper show={!!error}>
+          <Alert>{error}</Alert>
+        </AnimatedPresenceWrapper>
         <div className="mt-4 flex justify-center gap-2">
-          <Link to="/history" className="btn-secondary">Back to history</Link>
-          <Link to="/dashboard" className="btn-primary">Dashboard</Link>
+          <Link to="/history" className="btn-secondary transition-all active:scale-[0.97]">Back to history</Link>
+          <Link to="/dashboard" className="btn-primary transition-all active:scale-[0.97]">Dashboard</Link>
         </div>
       </div>
     );
@@ -84,142 +87,164 @@ export default function ReportPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><p className="eyebrow">Completed interview</p><h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.03em] text-ink-900 sm:text-4xl">Interview report</h1><p className="mt-2 text-sm text-ink-700">{report.jobRole} · {formatDate(report.completedAt)}</p></div>
-        <div className="flex gap-2"><Link to="/history" className="btn-secondary"><Icon name="history" size={16} /> History</Link><Link to="/interview/setup" className="btn-primary"><Icon name="plus" size={16} /> New interview</Link></div>
-      </div>
+      <FadeIn>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div><p className="eyebrow">Completed interview</p><h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.03em] text-ink-900 sm:text-4xl">Interview report</h1><p className="mt-2 text-sm text-ink-700">{report.jobRole} · {formatDate(report.completedAt)}</p></div>
+          <div className="flex gap-2"><Link to="/history" className="btn-secondary transition-all active:scale-[0.97]"><Icon name="history" size={16} /> History</Link><Link to="/interview/setup" className="btn-primary transition-all active:scale-[0.97]"><Icon name="plus" size={16} /> New interview</Link></div>
+        </div>
+      </FadeIn>
 
       <section aria-labelledby="summary-heading">
         <h2 id="summary-heading" className="mb-3 font-display text-2xl font-semibold">Performance Summary</h2>
-        <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-          <div className="card-panel flex flex-col items-center justify-center bg-ink-900 text-center text-white sm:flex-row sm:gap-7 sm:text-left"><ScoreRing score={report.overallScore ?? report.scoreAverage} size={146} dark /><div className="mt-5 sm:mt-0"><p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Overall result</p><h2 className="mt-2 font-display text-2xl font-semibold">{formatScore(report.overallScore ?? report.scoreAverage)} <span className="text-base font-medium text-slate-400">average</span></h2><div className="mt-3"><ScoreBadge score={report.overallScore ?? report.scoreAverage} /></div></div></div>
-          <div className="card-panel"><p className="text-sm font-bold text-accent-dark">AI-generated overall feedback</p><p className="mt-3 leading-7 text-ink-800">{report.overallFeedback || report.summary?.overallFeedback || 'Overall feedback is not available for this report yet.'}</p>
-          {report.summary?.overallFeedbackStatus === 'failed' && (
-            <p className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900"><Icon name="warning" size={14} /> A safe summary is shown because the feedback provider was unavailable.</p>
-          )}
-          {report.summary?.recommendation && (
-            <p className="mt-5 rounded-xl bg-accent-soft px-4 py-3 text-sm text-ink-800">
-              <span className="font-semibold text-accent-dark">Next session:</span> {report.summary.recommendation}
-            </p>
-          )}
-          </div>
-        </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3"><MetricCard label="Average answer score" value={formatScore(report.averageScore ?? report.scoreAverage)} /><MetricCard label="Questions" value={report.numberOfQuestions ?? report.questionCount ?? 0} /><MetricCard label="Answered" value={report.completedQuestions ?? questionAnalysis.filter((item) => item.answered).length} /></div>
+        <StaggerList staggerSpeed="normal" className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+          <StaggerItem>
+            <div className="card-panel h-full flex flex-col items-center justify-center bg-ink-900 text-center text-white sm:flex-row sm:gap-7 sm:text-left"><ScoreRing score={report.overallScore ?? report.scoreAverage} size={146} dark /><div className="mt-5 sm:mt-0"><p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Overall result</p><h2 className="mt-2 font-display text-2xl font-semibold">{formatScore(report.overallScore ?? report.scoreAverage)} <span className="text-base font-medium text-slate-400">average</span></h2><div className="mt-3"><ScoreBadge score={report.overallScore ?? report.scoreAverage} /></div></div></div>
+          </StaggerItem>
+          <StaggerItem>
+            <div className="card-panel h-full"><p className="text-sm font-bold text-accent-dark">AI-generated overall feedback</p><p className="mt-3 leading-7 text-ink-800">{report.overallFeedback || report.summary?.overallFeedback || 'Overall feedback is not available for this report yet.'}</p>
+            {report.summary?.overallFeedbackStatus === 'failed' && (
+              <p className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900"><Icon name="warning" size={14} /> A safe summary is shown because the feedback provider was unavailable.</p>
+            )}
+            {report.summary?.recommendation && (
+              <p className="mt-5 rounded-xl bg-accent-soft px-4 py-3 text-sm text-ink-800">
+                <span className="font-semibold text-accent-dark">Next session:</span> {report.summary.recommendation}
+              </p>
+            )}
+            </div>
+          </StaggerItem>
+        </StaggerList>
+        <StaggerList staggerSpeed="normal" className="mt-4 grid gap-4 sm:grid-cols-3">
+          <StaggerItem><MetricCard label="Average answer score" value={formatScore(report.averageScore ?? report.scoreAverage)} /></StaggerItem>
+          <StaggerItem><MetricCard label="Questions" value={report.numberOfQuestions ?? report.questionCount ?? 0} /></StaggerItem>
+          <StaggerItem><MetricCard label="Answered" value={report.completedQuestions ?? questionAnalysis.filter((item) => item.answered).length} /></StaggerItem>
+        </StaggerList>
       </section>
 
-      <section className="card-panel">
-        <h2 className="font-display text-xl font-semibold">Performance over time</h2>
-        {performanceOverTime.length ? (
-          <div className="mt-4 h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={performanceOverTime} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e6edf7" />
-                <XAxis dataKey="label" />
-                <YAxis domain={[0, 100]} />
-                <Tooltip formatter={(value) => [`${value}%`, 'Score']} labelFormatter={(value) => `Interview ${String(value).replace('I', '')}`} />
-                <Line type="monotone" dataKey="score" stroke="#0d9488" strokeWidth={3} dot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <EmptyState text="Historical performance will appear after completed interviews." />
-        )}
-      </section>
+      <ScrollReveal>
+        <section className="card-panel">
+          <h2 className="font-display text-xl font-semibold">Performance over time</h2>
+          {performanceOverTime.length ? (
+            <div className="mt-4 h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={performanceOverTime} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e6edf7" />
+                  <XAxis dataKey="label" />
+                  <YAxis domain={[0, 100]} />
+                  <Tooltip formatter={(value) => [`${value}%`, 'Score']} labelFormatter={(value) => `Interview ${String(value).replace('I', '')}`} />
+                  <Line type="monotone" dataKey="score" stroke="#0d9488" strokeWidth={3} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <EmptyState text="Historical performance will appear after completed interviews." />
+          )}
+        </section>
+      </ScrollReveal>
 
-      <section>
-        <h2 className="mb-3 font-display text-2xl font-semibold">Skill Analysis</h2>
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="card-panel overflow-x-auto">
-            {skillAnalysis.length ? (
-              <table className="w-full min-w-[480px] text-left text-sm">
-                <thead className="border-b border-ink-100 text-ink-700">
-                  <tr>
-                    <th className="pb-3 font-medium">Skill</th>
-                    <th className="pb-3 font-medium">Attempts</th>
-                    <th className="pb-3 font-medium">Average</th>
-                    <th className="pb-3 font-medium">Best</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {skillAnalysis.map((item) => (
-                    <tr key={item.skill} className="border-b border-ink-50">
-                      <td className="py-3 font-medium">{item.skill}</td>
-                      <td className="py-3">{item.attempts}</td>
-                      <td className="py-3">{formatScore(item.averageScore)}</td>
-                      <td className="py-3">{formatScore(item.bestScore)}</td>
+      <ScrollReveal>
+        <section>
+          <h2 className="mb-3 font-display text-2xl font-semibold">Skill Analysis</h2>
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="card-panel overflow-x-auto">
+              {skillAnalysis.length ? (
+                <table className="w-full min-w-[480px] text-left text-sm">
+                  <thead className="border-b border-ink-100 text-ink-700">
+                    <tr>
+                      <th className="pb-3 font-medium">Skill</th>
+                      <th className="pb-3 font-medium">Attempts</th>
+                      <th className="pb-3 font-medium">Average</th>
+                      <th className="pb-3 font-medium">Best</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : <EmptyState text="No skill scores are available." />}
+                  </thead>
+                  <tbody>
+                    {skillAnalysis.map((item) => (
+                      <tr key={item.skill} className="border-b border-ink-50">
+                        <td className="py-3 font-medium">{item.skill}</td>
+                        <td className="py-3">{item.attempts}</td>
+                        <td className="py-3">{formatScore(item.averageScore)}</td>
+                        <td className="py-3">{formatScore(item.bestScore)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : <EmptyState text="No skill scores are available." />}
+            </div>
+            <ChartPanel title="Skill-wise score" empty={!skillAnalysis.length} emptyText="Skill scores will appear after evaluation.">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={skillAnalysis} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e6edf7" />
+                  <XAxis type="number" domain={[0, 100]} />
+                  <YAxis type="category" dataKey="skill" width={110} tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(value) => [`${value}%`, 'Average']} />
+                  <Bar dataKey="averageScore" fill="#0d9488" radius={[0, 5, 5, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartPanel>
           </div>
-          <ChartPanel title="Skill-wise score" empty={!skillAnalysis.length} emptyText="Skill scores will appear after evaluation.">
+        </section>
+      </ScrollReveal>
+
+      <ScrollReveal>
+        <section>
+          <h2 className="mb-3 font-display text-2xl font-semibold">Question Analysis</h2>
+          <ChartPanel title="Question-wise score" empty={!questionAnalysis.length} emptyText="Question scores will appear after the interview is completed.">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={skillAnalysis} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 4 }}>
+              <BarChart data={questionAnalysis} margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e6edf7" />
-                <XAxis type="number" domain={[0, 100]} />
-                <YAxis type="category" dataKey="skill" width={110} tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value) => [`${value}%`, 'Average']} />
-                <Bar dataKey="averageScore" fill="#0d9488" radius={[0, 5, 5, 0]} />
+                <XAxis dataKey="order" tickFormatter={(value) => `Q${value}`} />
+                <YAxis domain={[0, 100]} />
+                <Tooltip labelFormatter={(value) => `Question ${value}`} formatter={(value) => [`${value}%`, 'Score']} />
+                <Bar dataKey="score" fill="#243b5a" radius={[5, 5, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartPanel>
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-3 font-display text-2xl font-semibold">Question Analysis</h2>
-        <ChartPanel title="Question-wise score" empty={!questionAnalysis.length} emptyText="Question scores will appear after the interview is completed.">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={questionAnalysis} margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e6edf7" />
-              <XAxis dataKey="order" tickFormatter={(value) => `Q${value}`} />
-              <YAxis domain={[0, 100]} />
-              <Tooltip labelFormatter={(value) => `Question ${value}`} formatter={(value) => [`${value}%`, 'Score']} />
-              <Bar dataKey="score" fill="#243b5a" radius={[5, 5, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartPanel>
-        <div className="card-panel mt-6">
-          <div className="divide-y divide-ink-100">
-            {(report.questions || []).map((question) => (
-              <QuestionResult key={question.order} question={question} />
-            ))}
+          <div className="card-panel mt-6">
+            <StaggerList staggerSpeed="fast" className="divide-y divide-ink-100">
+              {(report.questions || []).map((question) => (
+                <StaggerItem key={question.order}>
+                  <QuestionResult question={question} />
+                </StaggerItem>
+              ))}
+            </StaggerList>
           </div>
+        </section>
+      </ScrollReveal>
+
+      <ScrollReveal>
+        <section>
+          <h2 className="mb-3 font-display text-2xl font-semibold">Difficulty Progression</h2>
+          <ChartPanel title="Difficulty progression" empty={!difficultyProgression.length} emptyText="Difficulty history is not available.">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={difficultyProgression} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e6edf7" />
+                <XAxis dataKey="order" tickFormatter={(value) => `Q${value}`} />
+                <YAxis domain={[1, 3]} ticks={[1, 2, 3]} tickFormatter={difficultyLabel} />
+                <Tooltip labelFormatter={(value) => `Question ${value}`} formatter={(value) => [difficultyLabel(value), 'Difficulty']} />
+                <Line type="stepAfter" dataKey="difficulty" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartPanel>
+          {difficultyProgression.length > 0 && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {difficultyProgression.map((step) => (
+                <div key={step.order} className="rounded-xl bg-ink-50 p-3">
+                  <p className="text-xs font-medium text-ink-700">Question {step.order}</p>
+                  <p className="mt-1 font-semibold text-ink-900">{step.difficultyLabel || difficultyLabel(step.difficulty)}</p>
+                  <p className="mt-1 text-xs text-ink-700">{step.topic} · {formatScore(step.score)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </ScrollReveal>
+
+      <ScrollReveal delay={0.1}>
+        <div className="grid gap-6 md:grid-cols-3">
+          <ListBlock title="Strengths" items={strengths} empty="Strengths will appear after evaluation." />
+          <ListBlock title="Weaknesses" items={weaknesses} empty="No major weaknesses were recorded." />
+          <ListBlock title="Recommendations" items={recommendations} empty="Keep practicing the assessed topics." />
         </div>
-      </section>
-
-      <section>
-        <h2 className="mb-3 font-display text-2xl font-semibold">Difficulty Progression</h2>
-        <ChartPanel title="Difficulty progression" empty={!difficultyProgression.length} emptyText="Difficulty history is not available.">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={difficultyProgression} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e6edf7" />
-              <XAxis dataKey="order" tickFormatter={(value) => `Q${value}`} />
-              <YAxis domain={[1, 3]} ticks={[1, 2, 3]} tickFormatter={difficultyLabel} />
-              <Tooltip labelFormatter={(value) => `Question ${value}`} formatter={(value) => [difficultyLabel(value), 'Difficulty']} />
-              <Line type="stepAfter" dataKey="difficulty" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartPanel>
-        {difficultyProgression.length > 0 && (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {difficultyProgression.map((step) => (
-              <div key={step.order} className="rounded-xl bg-ink-50 p-3">
-                <p className="text-xs font-medium text-ink-700">Question {step.order}</p>
-                <p className="mt-1 font-semibold text-ink-900">{step.difficultyLabel || difficultyLabel(step.difficulty)}</p>
-                <p className="mt-1 text-xs text-ink-700">{step.topic} · {formatScore(step.score)}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <div className="grid gap-6 md:grid-cols-3">
-        <ListBlock title="Strengths" items={strengths} empty="Strengths will appear after evaluation." />
-        <ListBlock title="Weaknesses" items={weaknesses} empty="No major weaknesses were recorded." />
-        <ListBlock title="Recommendations" items={recommendations} empty="Keep practicing the assessed topics." />
-      </div>
+      </ScrollReveal>
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { m, AnimatePresence, useIsReducedMotion } from './motion.jsx';
 
 export function Icon({ name, size = 18, className = '' }) {
   const paths = {
@@ -80,7 +81,7 @@ export function Alert({ children, tone = 'error', className = '' }) {
 }
 
 export function Skeleton({ className = '' }) {
-  return <span aria-hidden="true" className={`block animate-pulse rounded-lg bg-ink-100 ${className}`} />;
+  return <span aria-hidden="true" className={`block animate-pulse rounded-lg bg-ink-100 skeleton-shimmer ${className}`} />;
 }
 
 export function PageHeader({ eyebrow, title, description, actions }) {
@@ -99,7 +100,7 @@ export function PageHeader({ eyebrow, title, description, actions }) {
 export function EmptyState({ icon = 'file', title, description, action }) {
   return (
     <div className="flex min-h-44 flex-col items-center justify-center rounded-2xl border border-dashed border-ink-200 bg-ink-50/60 px-6 py-10 text-center">
-      <span className="grid size-12 place-items-center rounded-2xl bg-white text-accent shadow-sm">
+      <span className="grid size-12 place-items-center rounded-2xl bg-white text-accent shadow-sm transition-transform duration-500 hover:scale-110">
         <Icon name={icon} size={22} />
       </span>
       {title && <h3 className="mt-4 font-semibold text-ink-900">{title}</h3>}
@@ -109,6 +110,7 @@ export function EmptyState({ icon = 'file', title, description, action }) {
   );
 }
 
+/* Animated score ring — SVG stroke fills in smoothly on mount */
 export function ScoreRing({ score = 0, size = 152, label = 'Overall score', dark = false }) {
   const numericScore = Number(score);
   const safeScore = Number.isFinite(numericScore) ? Math.max(0, Math.min(100, numericScore)) : 0;
@@ -116,21 +118,69 @@ export function ScoreRing({ score = 0, size = 152, label = 'Overall score', dark
   const circumference = 2 * Math.PI * radius;
   const tier = scoreTier(safeScore);
   const stroke = tier === 'strong' ? '#0f766e' : tier === 'average' ? '#d97706' : '#dc5a5a';
+  const reduced = useIsReducedMotion();
+
+  /* Animate the offset from full (empty) to the target value */
+  const targetOffset = circumference - (safeScore / 100) * circumference;
 
   return (
     <div className="relative shrink-0" style={{ height: size, width: size }} aria-label={`${label}: ${Math.round(safeScore)} out of 100`} role="img">
       <svg className="-rotate-90" height={size} viewBox="0 0 120 120" width={size}>
         <circle cx="60" cy="60" fill="none" r={radius} stroke="#e6edf7" strokeWidth="9" />
-        <circle cx="60" cy="60" fill="none" r={radius} stroke={stroke} strokeDasharray={circumference} strokeDashoffset={circumference - (safeScore / 100) * circumference} strokeLinecap="round" strokeWidth="9" />
+        {reduced ? (
+          <circle cx="60" cy="60" fill="none" r={radius} stroke={stroke} strokeDasharray={circumference} strokeDashoffset={targetOffset} strokeLinecap="round" strokeWidth="9" />
+        ) : (
+          <m.circle
+            cx="60" cy="60" fill="none" r={radius}
+            stroke={stroke}
+            strokeDasharray={circumference}
+            strokeLinecap="round"
+            strokeWidth="9"
+            initial={{ strokeDashoffset: circumference }}
+            animate={{ strokeDashoffset: targetOffset }}
+            transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+          />
+        )}
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">
         <div>
-          <p className={`font-display text-3xl font-semibold ${dark ? 'text-white' : 'text-ink-900'}`}>{Math.round(safeScore)}</p>
+          <AnimatedNumber value={Math.round(safeScore)} className={`font-display text-3xl font-semibold ${dark ? 'text-white' : 'text-ink-900'}`} />
           <p className={`text-[0.65rem] font-bold uppercase tracking-[0.14em] ${dark ? 'text-slate-400' : 'text-ink-700'}`}>/ 100</p>
         </div>
       </div>
     </div>
   );
+}
+
+/* Animated number counter — counts up from 0 to target */
+export function AnimatedNumber({ value, className = '' }) {
+  const reduced = useIsReducedMotion();
+  const [display, setDisplay] = useState(0);
+  const numVal = Number(value);
+  const isNum = Number.isFinite(numVal);
+
+  useEffect(() => {
+    if (!isNum || reduced) {
+      setDisplay(numVal || 0);
+      return;
+    }
+
+    let start = 0;
+    const end = numVal;
+    const stepDuration = Math.max(10, Math.min(30, 800 / Math.abs(end - start || 1)));
+    const step = end > start ? 1 : -1;
+
+    const timer = setInterval(() => {
+      start += step;
+      setDisplay(start);
+      if (start === end) clearInterval(timer);
+    }, stepDuration);
+
+    return () => clearInterval(timer);
+  }, [numVal, isNum, reduced]);
+
+  if (!isNum) return <p className={className}>{value}</p>;
+  return <p className={className}>{display}</p>;
 }
 
 export function ScoreBadge({ score }) {
@@ -154,6 +204,7 @@ export function ButtonSpinner() {
   return <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent" />;
 }
 
+/* Animated ConfirmDialog — backdrop fades, dialog scales in */
 export function ConfirmDialog({
   open,
   title = 'Are you sure?',
@@ -165,6 +216,7 @@ export function ConfirmDialog({
   busy = false,
 }) {
   const cancelRef = useRef(null);
+  const reduced = useIsReducedMotion();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -206,50 +258,104 @@ export function ConfirmDialog({
     };
   }, [busy, onCancel, open]);
 
-  if (!open) return null;
+  /* Static rendering for reduced motion */
+  if (reduced) {
+    if (!open) return null;
+    return (
+      <div
+        className="fixed inset-0 z-50 grid place-items-center bg-ink-900/45 px-4 py-8 backdrop-blur-[2px]"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !busy) onCancel();
+        }}
+      >
+        <DialogContent
+          title={title}
+          description={description}
+          confirmLabel={confirmLabel}
+          cancelLabel={cancelLabel}
+          onConfirm={onConfirm}
+          onCancel={onCancel}
+          busy={busy}
+          cancelRef={cancelRef}
+        />
+      </div>
+    );
+  }
 
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-ink-900/45 px-4 py-8 backdrop-blur-[2px]"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) onCancel();
-      }}
-    >
-      <div
-        id="confirmation-dialog"
-        className="w-full max-w-md rounded-3xl border border-ink-200 bg-white p-6 shadow-2xl sm:p-7"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirmation-dialog-title"
-        aria-describedby={description ? 'confirmation-dialog-description' : undefined}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start gap-4">
-          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent-dark">
-            <Icon name="logout" size={20} />
-          </span>
-          <div>
-            <p className="eyebrow">Confirm action</p>
-            <h2 id="confirmation-dialog-title" className="mt-1 font-display text-2xl font-semibold tracking-[-0.02em] text-ink-900">
-              {title}
-            </h2>
-            {description && (
-              <p id="confirmation-dialog-description" className="mt-2 text-sm leading-6 text-ink-700">
-                {description}
-              </p>
-            )}
-          </div>
-        </div>
+    <AnimatePresence>
+      {open && (
+        <m.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 grid place-items-center bg-ink-900/45 px-4 py-8 backdrop-blur-[2px]"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !busy) onCancel();
+          }}
+        >
+          <m.div
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <DialogContent
+              title={title}
+              description={description}
+              confirmLabel={confirmLabel}
+              cancelLabel={cancelLabel}
+              onConfirm={onConfirm}
+              onCancel={onCancel}
+              busy={busy}
+              cancelRef={cancelRef}
+            />
+          </m.div>
+        </m.div>
+      )}
+    </AnimatePresence>
+  );
+}
 
-        <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button ref={cancelRef} type="button" className="btn-secondary justify-center" onClick={onCancel} disabled={busy}>
-            {cancelLabel}
-          </button>
-          <button type="button" className="btn-primary justify-center" onClick={onConfirm} disabled={busy}>
-            {busy ? <><ButtonSpinner /> Logging out…</> : confirmLabel}
-          </button>
+/* Extracted dialog content to avoid duplication between animated/static */
+function DialogContent({ title, description, confirmLabel, cancelLabel, onConfirm, onCancel, busy, cancelRef }) {
+  return (
+    <div
+      id="confirmation-dialog"
+      className="w-full max-w-md rounded-3xl border border-ink-200 bg-white p-6 shadow-2xl sm:p-7"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirmation-dialog-title"
+      aria-describedby={description ? 'confirmation-dialog-description' : undefined}
+    >
+      <div className="flex items-start gap-4">
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent-dark">
+          <Icon name="logout" size={20} />
+        </span>
+        <div>
+          <p className="eyebrow">Confirm action</p>
+          <h2 id="confirmation-dialog-title" className="mt-1 font-display text-2xl font-semibold tracking-[-0.02em] text-ink-900">
+            {title}
+          </h2>
+          {description && (
+            <p id="confirmation-dialog-description" className="mt-2 text-sm leading-6 text-ink-700">
+              {description}
+            </p>
+          )}
         </div>
+      </div>
+
+      <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <button ref={cancelRef} type="button" className="btn-secondary justify-center" onClick={onCancel} disabled={busy}>
+          {cancelLabel}
+        </button>
+        <button type="button" className="btn-primary justify-center" onClick={onConfirm} disabled={busy}>
+          {busy ? <><ButtonSpinner /> Logging out…</> : confirmLabel}
+        </button>
       </div>
     </div>
   );

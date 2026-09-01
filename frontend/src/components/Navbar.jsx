@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { ConfirmDialog, Icon, Logo } from './ui.jsx';
+import { m, AnimatePresence, useIsReducedMotion } from './motion.jsx';
 
 const links = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -18,6 +19,7 @@ export default function Navbar() {
   const [logoutPromptOpen, setLogoutPromptOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const isSession = location.pathname !== '/interview/setup' && /^\/interview\/[^/]+$/.test(location.pathname);
+  const reduced = useIsReducedMotion();
 
   useEffect(() => {
     setMenuOpen(false);
@@ -71,7 +73,7 @@ export default function Navbar() {
               <div className="ml-3 flex items-center gap-2 border-l border-ink-100 pl-4">
                 <Avatar name={user.name} />
                 <span className="max-w-28 truncate text-sm font-semibold text-ink-800">{user.name}</span>
-                <button type="button" onClick={() => setLogoutPromptOpen(true)} className="ml-1 rounded-lg p-2 text-ink-700 transition-colors hover:bg-ink-50 hover:text-ink-900" aria-label="Log out">
+                <button type="button" onClick={() => setLogoutPromptOpen(true)} className="ml-1 rounded-lg p-2 text-ink-700 transition-all duration-200 hover:bg-ink-50 hover:text-ink-900 active:scale-90" aria-label="Log out">
                   <Icon name="logout" size={17} />
                 </button>
               </div>
@@ -79,23 +81,42 @@ export default function Navbar() {
 
             <div className="flex items-center gap-2 lg:hidden">
               <Avatar name={user.name} />
-              <button type="button" onClick={() => setMenuOpen((open) => !open)} className="rounded-xl border border-ink-200 p-2.5 text-ink-800" aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={menuOpen}>
+              <button type="button" onClick={() => setMenuOpen((open) => !open)} className="rounded-xl border border-ink-200 p-2.5 text-ink-800 transition-all duration-200 active:scale-95" aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={menuOpen}>
                 <Icon name={menuOpen ? 'close' : 'menu'} size={19} />
               </button>
             </div>
 
-            {menuOpen && (
-              <nav className="absolute inset-x-0 top-[4.5rem] border-b border-ink-100 bg-white px-4 py-3 shadow-panel lg:hidden" aria-label="Mobile navigation">
-                {links.map((link) => <NavItem key={link.to} {...link} mobile />)}
-                {user.role === 'admin' && <NavItem to="/admin" label="Admin" icon="shield" mobile />}
-                <Link to="/interview/setup" className="btn-primary mt-2 w-full"><Icon name="plus" size={16} /> Start new interview</Link>
-                <button type="button" onClick={() => setLogoutPromptOpen(true)} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">Log out</button>
-              </nav>
-            )}
+            {/* Animated mobile drawer */}
+            <AnimatePresence>
+              {menuOpen && (
+                reduced ? (
+                  <nav className="absolute inset-x-0 top-[4.5rem] border-b border-ink-100 bg-white px-4 py-3 shadow-panel lg:hidden" aria-label="Mobile navigation">
+                    {links.map((link) => <NavItem key={link.to} {...link} mobile />)}
+                    {user.role === 'admin' && <NavItem to="/admin" label="Admin" icon="shield" mobile />}
+                    <Link to="/interview/setup" className="btn-primary mt-2 w-full"><Icon name="plus" size={16} /> Start new interview</Link>
+                    <button type="button" onClick={() => setLogoutPromptOpen(true)} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">Log out</button>
+                  </nav>
+                ) : (
+                  <m.nav
+                    initial={{ opacity: 0, y: -8, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                    className="absolute inset-x-0 top-[4.5rem] overflow-hidden border-b border-ink-100 bg-white px-4 py-3 shadow-panel lg:hidden"
+                    aria-label="Mobile navigation"
+                  >
+                    {links.map((link) => <NavItem key={link.to} {...link} mobile />)}
+                    {user.role === 'admin' && <NavItem to="/admin" label="Admin" icon="shield" mobile />}
+                    <Link to="/interview/setup" className="btn-primary mt-2 w-full"><Icon name="plus" size={16} /> Start new interview</Link>
+                    <button type="button" onClick={() => setLogoutPromptOpen(true)} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">Log out</button>
+                  </m.nav>
+                )
+              )}
+            </AnimatePresence>
           </>
         ) : (
           <nav className="flex items-center gap-2 sm:gap-3" aria-label="Public navigation">
-            <NavLink to="/login" className="hidden text-sm font-semibold text-ink-700 transition-colors hover:text-accent sm:inline">Sign in</NavLink>
+            <NavLink to="/login" className="hidden text-sm font-semibold text-ink-700 transition-all duration-200 hover:text-accent sm:inline">Sign in</NavLink>
             <Link to="/register" className="btn-primary px-3.5 py-2.5">Get started <Icon name="arrow" size={16} /></Link>
           </nav>
         )}
@@ -117,7 +138,7 @@ function NavItem({ to, label, icon, mobile = false }) {
   return (
     <NavLink
       to={to}
-      className={({ isActive }) => `${mobile ? 'flex w-full items-center gap-3 rounded-xl px-3 py-3' : 'inline-flex items-center gap-2 rounded-xl px-3 py-2.5'} text-sm font-semibold transition-colors ${isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink-700 hover:bg-ink-50 hover:text-ink-900'}`}
+      className={({ isActive }) => `${mobile ? 'flex w-full items-center gap-3 rounded-xl px-3 py-3' : 'inline-flex items-center gap-2 rounded-xl px-3 py-2.5'} text-sm font-semibold transition-all duration-200 active:scale-[0.97] ${isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink-700 hover:bg-ink-50 hover:text-ink-900'}`}
     >
       <Icon name={icon} size={16} />
       {label}
@@ -127,5 +148,5 @@ function NavItem({ to, label, icon, mobile = false }) {
 
 function Avatar({ name = '' }) {
   const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'U';
-  return <span className="grid size-9 place-items-center rounded-xl bg-ink-900 text-xs font-bold text-white" aria-hidden="true">{initials}</span>;
+  return <span className="grid size-9 place-items-center rounded-xl bg-ink-900 text-xs font-bold text-white transition-transform duration-200 hover:scale-105" aria-hidden="true">{initials}</span>;
 }

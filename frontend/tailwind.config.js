@@ -24,6 +24,29 @@ export default {
       },
       boxShadow: {
         panel: '0 18px 50px rgba(17, 28, 45, 0.08)',
+        'card-hover': '0 20px 60px rgba(17, 28, 45, 0.13)',
+      },
+      transitionTimingFunction: {
+        'out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+      },
+      keyframes: {
+        shimmer: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
+        },
+        'float': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-8px)' },
+        },
+        'gradient-shift': {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+        },
+      },
+      animation: {
+        shimmer: 'shimmer 2s infinite',
+        float: 'float 6s ease-in-out infinite',
+        'gradient-shift': 'gradient-shift 8s ease-in-out infinite',
       },
     },
   },
