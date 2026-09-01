@@ -15,9 +15,29 @@ async function seed() {
 
   await connectDB();
 
-  const existing = await User.findOne({ email: config.admin.email });
+  const existing = await User.findOne({ email: config.admin.email }).select('+password');
   if (existing) {
-    console.log('Admin already exists:', config.admin.email);
+    let changed = false;
+
+    if (existing.name !== 'Platform Admin') {
+      existing.name = 'Platform Admin';
+      changed = true;
+    }
+    if (existing.role !== 'admin') {
+      existing.role = 'admin';
+      changed = true;
+    }
+    if (!(await existing.comparePassword(config.admin.password))) {
+      existing.password = config.admin.password;
+      changed = true;
+    }
+
+    if (changed) {
+      await existing.save();
+      console.log('Admin account synchronized.');
+    } else {
+      console.log('Admin account already synchronized.');
+    }
   } else {
     await User.create({
       name: 'Platform Admin',
