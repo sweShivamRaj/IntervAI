@@ -11,6 +11,7 @@ import {
 } from '../services/interviewApi.js';
 import { difficultyLabel, formatDate } from '../utils/format.js';
 import { Alert, ButtonSpinner, EmptyState, Icon, PageHeader, Skeleton } from '../components/ui.jsx';
+import { FadeIn, StaggerList, StaggerItem, AnimatedTabContent, AnimatedPresenceWrapper } from '../components/motion.jsx';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -167,12 +168,14 @@ export default function AdminPage() {
   if (loading) return <AdminSkeleton />;
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        eyebrow="Platform control"
-        title="Admin dashboard"
-        description="Review platform activity, manage candidates, and maintain the fallback question bank."
-      />
+    <FadeIn className="space-y-8">
+      <FadeIn>
+        <PageHeader
+          eyebrow="Platform control"
+          title="Admin dashboard"
+          description="Review platform activity, manage candidates, and maintain the fallback question bank."
+        />
+      </FadeIn>
 
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Admin sections">
         {TABS.map((item) => (
@@ -182,7 +185,7 @@ export default function AdminPage() {
             role="tab"
             aria-selected={tab === item.id}
             onClick={() => setTab(item.id)}
-            className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold ${
+            className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all active:scale-[0.97] ${
               tab === item.id ? 'bg-ink-900 text-white' : 'bg-white text-ink-700 ring-1 ring-ink-200 hover:bg-ink-50'
             }`}
           >
@@ -192,43 +195,50 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {error && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Alert className="flex-1">{error}</Alert>
-          <button type="button" className="btn-secondary" onClick={() => { loadCore(); if (tab === 'questions') loadQuestions(); }}>
-            Try again
-          </button>
-        </div>
-      )}
-      {notice && <Alert tone="success">{notice}</Alert>}
+      <AnimatedPresenceWrapper show={!!error}>
+        {error && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Alert className="flex-1">{error}</Alert>
+            <button type="button" className="btn-secondary transition-all active:scale-[0.97]" onClick={() => { loadCore(); if (tab === 'questions') loadQuestions(); }}>
+              Try again
+            </button>
+          </div>
+        )}
+      </AnimatedPresenceWrapper>
+      
+      <AnimatedPresenceWrapper show={!!notice}>
+        {notice && <Alert tone="success">{notice}</Alert>}
+      </AnimatedPresenceWrapper>
 
-      {tab === 'overview' && (
-        <OverviewPanel stats={stats} recentInterviews={recentInterviews} onOpen={(next) => setTab(next)} />
-      )}
-      {tab === 'users' && <UsersPanel users={users} />}
-      {tab === 'interviews' && <InterviewsPanel interviews={interviews} />}
-      {tab === 'questions' && (
-        <QuestionsPanel
-          questions={questions}
-          skillOptions={skillOptions}
-          skillFilter={skillFilter}
-          difficultyFilter={difficultyFilter}
-          onSkillFilter={setSkillFilter}
-          onDifficultyFilter={setDifficultyFilter}
-          form={form}
-          setForm={setForm}
-          editingId={editingId}
-          saving={saving}
-          onSave={onSaveQuestion}
-          onEdit={startEdit}
-          onDelete={onDeleteQuestion}
-          onCancel={() => {
-            setEditingId(null);
-            setForm(EMPTY_QUESTION);
-          }}
-        />
-      )}
-    </div>
+      <AnimatedTabContent activeKey={tab}>
+        {tab === 'overview' && (
+          <OverviewPanel stats={stats} recentInterviews={recentInterviews} onOpen={(next) => setTab(next)} />
+        )}
+        {tab === 'users' && <UsersPanel users={users} />}
+        {tab === 'interviews' && <InterviewsPanel interviews={interviews} />}
+        {tab === 'questions' && (
+          <QuestionsPanel
+            questions={questions}
+            skillOptions={skillOptions}
+            skillFilter={skillFilter}
+            difficultyFilter={difficultyFilter}
+            onSkillFilter={setSkillFilter}
+            onDifficultyFilter={setDifficultyFilter}
+            form={form}
+            setForm={setForm}
+            editingId={editingId}
+            saving={saving}
+            onSave={onSaveQuestion}
+            onEdit={startEdit}
+            onDelete={onDeleteQuestion}
+            onCancel={() => {
+              setEditingId(null);
+              setForm(EMPTY_QUESTION);
+            }}
+          />
+        )}
+      </AnimatedTabContent>
+    </FadeIn>
   );
 }
 
@@ -236,15 +246,21 @@ function OverviewPanel({ stats, recentInterviews, onOpen }) {
   const popular = stats?.mostPopularSkills || [];
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <AdminMetric icon="users" label="Total users" value={stats?.totalUsers ?? 0} />
-        <AdminMetric icon="file" label="Total interviews" value={stats?.totalInterviews ?? 0} />
-        <AdminMetric
-          icon="target"
-          label="Average interview score"
-          value={stats?.averageInterviewScore ? `${Math.round(stats.averageInterviewScore)}%` : '—'}
-        />
-      </div>
+      <StaggerList className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StaggerItem>
+          <AdminMetric icon="users" label="Total users" value={stats?.totalUsers ?? 0} />
+        </StaggerItem>
+        <StaggerItem>
+          <AdminMetric icon="file" label="Total interviews" value={stats?.totalInterviews ?? 0} />
+        </StaggerItem>
+        <StaggerItem>
+          <AdminMetric
+            icon="target"
+            label="Average interview score"
+            value={stats?.averageInterviewScore ? `${Math.round(stats.averageInterviewScore)}%` : '—'}
+          />
+        </StaggerItem>
+      </StaggerList>
 
       <section className="card-panel">
         <div className="mb-4 flex items-center justify-between gap-3">
@@ -272,7 +288,7 @@ function OverviewPanel({ stats, recentInterviews, onOpen }) {
             <h2 className="section-title">Recent interviews</h2>
             <p className="mt-1 text-sm text-ink-700">Latest sessions across the platform.</p>
           </div>
-          <button type="button" className="text-sm font-bold text-accent-dark hover:underline" onClick={() => onOpen('interviews')}>
+          <button type="button" className="text-sm font-bold text-accent-dark hover:underline transition-all active:scale-[0.97]" onClick={() => onOpen('interviews')}>
             View all
           </button>
         </div>
@@ -290,30 +306,32 @@ function UsersPanel({ users }) {
         <p className="mt-1 text-sm text-ink-700">{users.length} registered accounts.</p>
       </div>
       {users.length ? (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left text-sm">
-            <thead className="border-b border-ink-100 text-xs uppercase tracking-[0.1em] text-ink-700">
-              <tr>
-                <th className="px-6 py-3 font-bold">Name</th>
-                <th className="px-4 py-3 font-bold">Email</th>
-                <th className="px-4 py-3 font-bold">Role</th>
-                <th className="px-4 py-3 font-bold">Skills</th>
-                <th className="px-6 py-3 text-right font-bold">Created</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-100">
-              {users.map((user) => (
-                <tr key={user.id} className="hover:bg-ink-50/60">
-                  <td className="px-6 py-4 font-bold text-ink-900">{user.name}</td>
-                  <td className="px-4 py-4 text-ink-700">{user.email}</td>
-                  <td className="px-4 py-4 capitalize">{user.role}</td>
-                  <td className="max-w-xs px-4 py-4 text-ink-700">{user.skills?.length ? user.skills.join(', ') : '—'}</td>
-                  <td className="whitespace-nowrap px-6 py-4 text-right text-xs text-ink-700">{formatDate(user.createdAt)}</td>
+        <FadeIn>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[820px] text-left text-sm">
+              <thead className="border-b border-ink-100 text-xs uppercase tracking-[0.1em] text-ink-700">
+                <tr>
+                  <th className="px-6 py-3 font-bold">Name</th>
+                  <th className="px-4 py-3 font-bold">Email</th>
+                  <th className="px-4 py-3 font-bold">Role</th>
+                  <th className="px-4 py-3 font-bold">Skills</th>
+                  <th className="px-6 py-3 text-right font-bold">Created</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-ink-100">
+                {users.map((user) => (
+                  <tr key={user.id} className="hover:bg-ink-50/60">
+                    <td className="px-6 py-4 font-bold text-ink-900">{user.name}</td>
+                    <td className="px-4 py-4 text-ink-700">{user.email}</td>
+                    <td className="px-4 py-4 capitalize">{user.role}</td>
+                    <td className="max-w-xs px-4 py-4 text-ink-700">{user.skills?.length ? user.skills.join(', ') : '—'}</td>
+                    <td className="whitespace-nowrap px-6 py-4 text-right text-xs text-ink-700">{formatDate(user.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </FadeIn>
       ) : (
         <div className="p-6">
           <EmptyState icon="users" title="No users yet" description="Registered accounts will appear here." />
@@ -345,33 +363,35 @@ function InterviewTable({ interviews, empty }) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-left text-sm">
-        <thead className="border-b border-ink-100 text-xs uppercase tracking-[0.1em] text-ink-700">
-          <tr>
-            <th className="px-6 py-3 font-bold">Candidate</th>
-            <th className="px-4 py-3 font-bold">Job role</th>
-            <th className="px-4 py-3 font-bold">Score</th>
-            <th className="px-4 py-3 font-bold">Status</th>
-            <th className="px-6 py-3 text-right font-bold">Date</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-ink-100">
-          {interviews.map((item) => (
-            <tr key={item._id} className="hover:bg-ink-50/60">
-              <td className="px-6 py-4">
-                <p className="font-bold text-ink-900">{item.user?.name || item.candidate || 'Candidate'}</p>
-                <p className="mt-0.5 text-xs text-ink-700">{item.user?.email || ''}</p>
-              </td>
-              <td className="px-4 py-4">{item.jobRole}</td>
-              <td className="px-4 py-4 font-semibold">{item.scoreAverage == null && item.score == null ? '—' : `${Math.round(item.scoreAverage ?? item.score)}%`}</td>
-              <td className="px-4 py-4"><StatusBadge status={item.status} /></td>
-              <td className="whitespace-nowrap px-6 py-4 text-right text-xs text-ink-700">{formatDate(item.date || item.createdAt)}</td>
+    <FadeIn>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] text-left text-sm">
+          <thead className="border-b border-ink-100 text-xs uppercase tracking-[0.1em] text-ink-700">
+            <tr>
+              <th className="px-6 py-3 font-bold">Candidate</th>
+              <th className="px-4 py-3 font-bold">Job role</th>
+              <th className="px-4 py-3 font-bold">Score</th>
+              <th className="px-4 py-3 font-bold">Status</th>
+              <th className="px-6 py-3 text-right font-bold">Date</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-ink-100">
+            {interviews.map((item) => (
+              <tr key={item._id} className="hover:bg-ink-50/60">
+                <td className="px-6 py-4">
+                  <p className="font-bold text-ink-900">{item.user?.name || item.candidate || 'Candidate'}</p>
+                  <p className="mt-0.5 text-xs text-ink-700">{item.user?.email || ''}</p>
+                </td>
+                <td className="px-4 py-4">{item.jobRole}</td>
+                <td className="px-4 py-4 font-semibold">{item.scoreAverage == null && item.score == null ? '—' : `${Math.round(item.scoreAverage ?? item.score)}%`}</td>
+                <td className="px-4 py-4"><StatusBadge status={item.status} /></td>
+                <td className="whitespace-nowrap px-6 py-4 text-right text-xs text-ink-700">{formatDate(item.date || item.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </FadeIn>
   );
 }
 
@@ -393,126 +413,130 @@ function QuestionsPanel({
 }) {
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-      <form onSubmit={onSave} className="card-panel space-y-4">
-        <div>
-          <h2 className="section-title">{editingId ? 'Edit fallback question' : 'Create fallback question'}</h2>
-          <p className="mt-1 text-sm text-ink-700">These questions are used when AI generation is unavailable.</p>
-        </div>
-        <label className="block text-sm font-bold text-ink-900">
-          Question text
-          <textarea
-            className="input-field mt-2 min-h-28 resize-y"
-            required
-            minLength={20}
-            value={form.questionText}
-            onChange={(event) => setForm({ ...form, questionText: event.target.value })}
-          />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-bold text-ink-900">
-            Skill
-            <select className="input-field mt-2" value={form.topic} onChange={(event) => setForm({ ...form, topic: event.target.value })}>
-              {skillOptions.map((skill) => (
-                <option key={skill} value={skill}>{skill}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm font-bold text-ink-900">
-            Difficulty
-            <select className="input-field mt-2" value={form.difficulty} onChange={(event) => setForm({ ...form, difficulty: Number(event.target.value) })}>
-              <option value={1}>Easy</option>
-              <option value={2}>Medium</option>
-              <option value={3}>Hard</option>
-            </select>
-          </label>
-        </div>
-        <label className="block text-sm font-bold text-ink-900">
-          Question type
-          <select className="input-field mt-2" value={form.questionType} onChange={(event) => setForm({ ...form, questionType: event.target.value })}>
-            <option value="conceptual">Conceptual</option>
-            <option value="scenario">Scenario</option>
-            <option value="coding">Coding</option>
-            <option value="design">Design</option>
-          </select>
-        </label>
-        <label className="block text-sm font-bold text-ink-900">
-          Expected concepts
-          <input
-            className="input-field mt-2"
-            required
-            placeholder="closures, scope, hoisting"
-            value={form.expectedConcepts}
-            onChange={(event) => setForm({ ...form, expectedConcepts: event.target.value })}
-          />
-          <span className="mt-1 block text-xs font-medium text-ink-700">Separate with commas. Used only for evaluation, never shown to candidates.</span>
-        </label>
-        <div className="flex flex-wrap gap-2 pt-2">
-          <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? <><ButtonSpinner /> Saving…</> : editingId ? 'Save changes' : 'Create question'}
-          </button>
-          {editingId && (
-            <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
-          )}
-        </div>
-      </form>
-
-      <section className="card-panel overflow-hidden p-0">
-        <div className="space-y-4 border-b border-ink-100 bg-ink-50/60 px-6 py-5">
+      <FadeIn>
+        <form onSubmit={onSave} className="card-panel space-y-4">
           <div>
-            <h2 className="section-title">Fallback question bank</h2>
-            <p className="mt-1 text-sm text-ink-700">{questions.length} matching questions.</p>
+            <h2 className="section-title">{editingId ? 'Edit fallback question' : 'Create fallback question'}</h2>
+            <p className="mt-1 text-sm text-ink-700">These questions are used when AI generation is unavailable.</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-xs font-bold uppercase tracking-[0.1em] text-ink-700">
-              Filter by skill
-              <select className="input-field mt-1.5 py-2 text-sm font-semibold normal-case tracking-normal" value={skillFilter} onChange={(event) => onSkillFilter(event.target.value)}>
-                <option value="">All skills</option>
+          <label className="block text-sm font-bold text-ink-900">
+            Question text
+            <textarea
+              className="input-field mt-2 min-h-28 resize-y transition-all"
+              required
+              minLength={20}
+              value={form.questionText}
+              onChange={(event) => setForm({ ...form, questionText: event.target.value })}
+            />
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm font-bold text-ink-900">
+              Skill
+              <select className="input-field mt-2 transition-all" value={form.topic} onChange={(event) => setForm({ ...form, topic: event.target.value })}>
                 {skillOptions.map((skill) => (
                   <option key={skill} value={skill}>{skill}</option>
                 ))}
               </select>
             </label>
-            <label className="text-xs font-bold uppercase tracking-[0.1em] text-ink-700">
-              Filter by difficulty
-              <select className="input-field mt-1.5 py-2 text-sm font-semibold normal-case tracking-normal" value={difficultyFilter} onChange={(event) => onDifficultyFilter(event.target.value)}>
-                <option value="">All levels</option>
-                <option value="1">Easy</option>
-                <option value="2">Medium</option>
-                <option value="3">Hard</option>
+            <label className="block text-sm font-bold text-ink-900">
+              Difficulty
+              <select className="input-field mt-2 transition-all" value={form.difficulty} onChange={(event) => setForm({ ...form, difficulty: Number(event.target.value) })}>
+                <option value={1}>Easy</option>
+                <option value={2}>Medium</option>
+                <option value={3}>Hard</option>
               </select>
             </label>
           </div>
-        </div>
-        {questions.length ? (
-          <ul className="divide-y divide-ink-100">
-            {questions.map((question) => (
-              <li key={question._id} className="px-6 py-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-bold text-accent-dark">{question.topic}</span>
-                      <span className="rounded-full bg-ink-50 px-2.5 py-1 text-xs font-bold text-ink-700">{question.difficultyLabel || difficultyLabel(question.difficulty)}</span>
-                    </div>
-                    <p className="mt-2 text-sm font-semibold leading-6 text-ink-900">{question.questionText}</p>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button type="button" className="btn-secondary px-3 py-2" onClick={() => onEdit(question)} aria-label="Edit question">
-                      <Icon name="pencil" size={15} /> Edit
-                    </button>
-                    <button type="button" className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" onClick={() => onDelete(question)} aria-label="Delete question">
-                      <Icon name="trash" size={15} /> Delete
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="p-6">
-            <EmptyState icon="book" title="No matching questions" description="Adjust filters or create a new fallback question." />
+          <label className="block text-sm font-bold text-ink-900">
+            Question type
+            <select className="input-field mt-2 transition-all" value={form.questionType} onChange={(event) => setForm({ ...form, questionType: event.target.value })}>
+              <option value="conceptual">Conceptual</option>
+              <option value="scenario">Scenario</option>
+              <option value="coding">Coding</option>
+              <option value="design">Design</option>
+            </select>
+          </label>
+          <label className="block text-sm font-bold text-ink-900">
+            Expected concepts
+            <input
+              className="input-field mt-2 transition-all"
+              required
+              placeholder="closures, scope, hoisting"
+              value={form.expectedConcepts}
+              onChange={(event) => setForm({ ...form, expectedConcepts: event.target.value })}
+            />
+            <span className="mt-1 block text-xs font-medium text-ink-700">Separate with commas. Used only for evaluation, never shown to candidates.</span>
+          </label>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <button type="submit" className="btn-primary transition-all active:scale-[0.97]" disabled={saving}>
+              {saving ? <><ButtonSpinner /> Saving…</> : editingId ? 'Save changes' : 'Create question'}
+            </button>
+            {editingId && (
+              <button type="button" className="btn-secondary transition-all active:scale-[0.97]" onClick={onCancel}>Cancel</button>
+            )}
           </div>
-        )}
-      </section>
+        </form>
+      </FadeIn>
+
+      <FadeIn>
+        <section className="card-panel overflow-hidden p-0">
+          <div className="space-y-4 border-b border-ink-100 bg-ink-50/60 px-6 py-5">
+            <div>
+              <h2 className="section-title">Fallback question bank</h2>
+              <p className="mt-1 text-sm text-ink-700">{questions.length} matching questions.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-bold uppercase tracking-[0.1em] text-ink-700">
+                Filter by skill
+                <select className="input-field mt-1.5 py-2 text-sm font-semibold normal-case tracking-normal transition-all" value={skillFilter} onChange={(event) => onSkillFilter(event.target.value)}>
+                  <option value="">All skills</option>
+                  {skillOptions.map((skill) => (
+                    <option key={skill} value={skill}>{skill}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs font-bold uppercase tracking-[0.1em] text-ink-700">
+                Filter by difficulty
+                <select className="input-field mt-1.5 py-2 text-sm font-semibold normal-case tracking-normal transition-all" value={difficultyFilter} onChange={(event) => onDifficultyFilter(event.target.value)}>
+                  <option value="">All levels</option>
+                  <option value="1">Easy</option>
+                  <option value="2">Medium</option>
+                  <option value="3">Hard</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          {questions.length ? (
+            <ul className="divide-y divide-ink-100">
+              {questions.map((question) => (
+                <li key={question._id} className="px-6 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap gap-2">
+                        <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-bold text-accent-dark">{question.topic}</span>
+                        <span className="rounded-full bg-ink-50 px-2.5 py-1 text-xs font-bold text-ink-700">{question.difficultyLabel || difficultyLabel(question.difficulty)}</span>
+                      </div>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-ink-900">{question.questionText}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <button type="button" className="btn-secondary px-3 py-2 transition-all active:scale-[0.97]" onClick={() => onEdit(question)} aria-label="Edit question">
+                        <Icon name="pencil" size={15} /> Edit
+                      </button>
+                      <button type="button" className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 transition-all active:scale-[0.97]" onClick={() => onDelete(question)} aria-label="Delete question">
+                        <Icon name="trash" size={15} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="p-6">
+              <EmptyState icon="book" title="No matching questions" description="Adjust filters or create a new fallback question." />
+            </div>
+          )}
+        </section>
+      </FadeIn>
     </div>
   );
 }
