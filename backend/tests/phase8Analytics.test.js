@@ -71,6 +71,36 @@ assert.equal(emptyReport.questionAnalysis[0].score, null);
 assert.deepEqual(emptyReport.recommendedTopics, ['SQL']);
 assert.deepEqual(buildRecommendedTopics([{ skill: 'SQL', averageScore: 45 }], ['SQL']), ['SQL']);
 
+const fiveQuestionReport = buildReportAnalytics({
+  interview: { scoreAverage: 80, questionCount: 5, skills: ['JavaScript'] },
+  questions: Array.from({ length: 5 }, (_, index) => ({
+    _id: `five-${index + 1}`,
+    order: index + 1,
+    topic: 'JavaScript',
+    difficulty: 1,
+    questionText: `Question ${index + 1}`,
+  })),
+  answers: [80, 70, 90, 60, 100].map((score, index) => ({
+    questionId: `five-${index + 1}`,
+    score,
+    evaluationStatus: 'completed',
+  })),
+});
+assert.equal(fiveQuestionReport.overallScore, 80, 'the circle should show the average of all five valid AI scores');
+
+const invalidScoreReport = buildReportAnalytics({
+  interview: { scoreAverage: null, questionCount: 3, skills: ['JavaScript'] },
+  questions: ['low', 'valid', 'high'].map((id, index) => ({
+    _id: id, order: index + 1, topic: 'JavaScript', difficulty: 1, questionText: id,
+  })),
+  answers: [
+    { questionId: 'low', score: -1, evaluationStatus: 'completed' },
+    { questionId: 'valid', score: 80, evaluationStatus: 'completed' },
+    { questionId: 'high', score: 101, evaluationStatus: 'completed' },
+  ],
+});
+assert.equal(invalidScoreReport.overallScore, 80, 'out-of-range scores must not affect the report average');
+
 async function testOverallFeedback() {
   const originalProvider = config.ai.provider;
   config.ai.provider = 'mock';

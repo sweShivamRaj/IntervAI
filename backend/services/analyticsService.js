@@ -12,7 +12,7 @@ function getFiniteScores(answers = []) {
   return answers
     .filter((answer) => answer?.evaluationStatus !== 'failed' && answer?.evaluationStatus !== 'pending')
     .map((answer) => numericScore(answer.score))
-    .filter((score) => score !== null);
+    .filter(isValidScore);
 }
 
 function getReportableInterviewScore(interview, answers = []) {
@@ -57,9 +57,10 @@ function groupSkillScores(questions = [], answers = []) {
     const answer = answerByQuestion.get(String(question._id));
     const existing = grouped.get(skill) || { skill, scores: [], attempts: 0, bestScore: null };
     existing.attempts += answer ? 1 : 0;
-    const score = answer?.evaluationStatus === 'failed' || answer?.evaluationStatus === 'pending'
+    const rawScore = answer?.evaluationStatus === 'failed' || answer?.evaluationStatus === 'pending'
       ? null
       : numericScore(answer?.score);
+    const score = isValidScore(rawScore) ? rawScore : null;
     if (score !== null) {
       existing.scores.push(score);
       existing.bestScore = existing.bestScore === null ? score : Math.max(existing.bestScore, score);
@@ -171,6 +172,10 @@ function numericScore(value) {
   if (value === null || value === undefined || value === '') return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function isValidScore(score) {
+  return score !== null && score >= 0 && score <= 100;
 }
 
 async function buildHistoricalAnalytics(userId) {

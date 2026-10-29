@@ -23,7 +23,9 @@ export default function ReportPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [retryingQuestionId, setRetryingQuestionId] = useState(null);
+  const [retryingAll, setRetryingAll] = useState(false);
   const [retryError, setRetryError] = useState('');
+  const [retryAllResult, setRetryAllResult] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +70,43 @@ export default function ReportPage() {
     }
   }
 
+  async function onRetryAllEvaluations() {
+    const failedQuestions = (report?.questions || []).filter(
+      (question) => question.evaluation?.status === 'failed'
+    );
+    if (!failedQuestions.length || retryingAll) return;
+
+    setRetryingAll(true);
+    setRetryAllResult('');
+    setRetryError('');
+    let succeeded = 0;
+    let stillUnavailable = 0;
+    try {
+      for (const question of failedQuestions) {
+        setRetryingQuestionId(question.questionId);
+        try {
+          const { data } = await retryAnswerEvaluation(question.questionId);
+          if (data.evaluation?.status === 'completed') succeeded += 1;
+          else stillUnavailable += 1;
+        } catch {
+          stillUnavailable += 1;
+        }
+      }
+      const { data } = await getReport(id);
+      setReport(data.report);
+      setRetryAllResult(
+        succeeded
+          ? `Re-evaluated ${succeeded} answer${succeeded === 1 ? '' : 's'}.${stillUnavailable ? ` ${stillUnavailable} still need a working AI provider.` : ''}`
+          : 'No answer was re-evaluated. Check the backend logs for the provider error and verify its key and quota.'
+      );
+    } catch (err) {
+      setRetryError(err.response?.data?.message || 'Could not refresh the interview report.');
+    } finally {
+      setRetryingQuestionId(null);
+      setRetryingAll(false);
+    }
+  }
+
   if (loading) {
     return <ReportSkeleton />;
   }
@@ -100,6 +139,17 @@ export default function ReportPage() {
   const strengths = report.strengths || report.summary?.strengths || [];
   const weaknesses = report.weaknesses || report.summary?.weaknesses || [];
   const recommendations = report.recommendedTopics || report.summary?.recommendedTopics || [];
+  const failedEvaluationCount = (report.questions || []).filter(
+    (question) => question.evaluation?.status === 'failed'
+  ).length;
+  const evaluatedAnswerCount = (report.questions || []).filter(
+    (question) => question.evaluation?.status === 'completed'
+      && question.score !== null
+      && question.score !== undefined
+      && Number.isFinite(Number(question.score))
+      && Number(question.score) >= 0
+      && Number(question.score) <= 100
+  ).length;
 
   return (
     <div className="space-y-8">
@@ -121,6 +171,16 @@ export default function ReportPage() {
             {report.summary?.overallFeedbackStatus === 'failed' && (
               <p className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900"><Icon name="warning" size={14} /> A safe summary is shown because the feedback provider was unavailable.</p>
             )}
+            {report.overallScore == null && failedEvaluationCount > 0 && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                <p className="text-sm leading-6 text-amber-950">No valid AI scores are saved yet. {failedEvaluationCount} answer{failedEvaluationCount === 1 ? ' needs' : 's need'} re-evaluation before an overall score can be calculated.</p>
+                <button type="button" className="btn-secondary mt-3" onClick={onRetryAllEvaluations} disabled={retryingAll || retryingQuestionId !== null}>
+                  {retryingAll ? <><Icon name="spark" size={15} /> Retrying {retryingQuestionId ? 'evaluation' : 'evaluations'}…</> : `Retry ${failedEvaluationCount} failed evaluation${failedEvaluationCount === 1 ? '' : 's'}`}
+                </button>
+                {retryAllResult && <p className="mt-2 text-sm leading-6 text-ink-800" role="status">{retryAllResult}</p>}
+                {retryError && <p className="mt-2 text-sm text-red-700" role="alert">{retryError}</p>}
+              </div>
+            )}
             {report.summary?.recommendation && (
               <p className="mt-5 rounded-xl bg-accent-soft px-4 py-3 text-sm text-ink-800">
                 <span className="font-semibold text-accent-dark">Next session:</span> {report.summary.recommendation}
@@ -129,10 +189,11 @@ export default function ReportPage() {
             </div>
           </StaggerItem>
         </StaggerList>
-        <StaggerList staggerSpeed="normal" className="mt-4 grid gap-4 sm:grid-cols-3">
+        <StaggerList staggerSpeed="normal" className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StaggerItem><MetricCard label="Average answer score" value={formatScore(report.averageScore ?? report.scoreAverage)} /></StaggerItem>
           <StaggerItem><MetricCard label="Questions" value={report.numberOfQuestions ?? report.questionCount ?? 0} /></StaggerItem>
           <StaggerItem><MetricCard label="Answered" value={report.completedQuestions ?? questionAnalysis.filter((item) => item.answered).length} /></StaggerItem>
+          <StaggerItem><MetricCard label="Evaluated" value={`${evaluatedAnswerCount} / ${report.numberOfQuestions ?? report.questionCount ?? 0}`} /></StaggerItem>
         </StaggerList>
       </section>
 
