@@ -10,8 +10,16 @@ function roundScore(value) {
 
 function getFiniteScores(answers = []) {
   return answers
+    .filter((answer) => answer?.evaluationStatus !== 'failed' && answer?.evaluationStatus !== 'pending')
     .map((answer) => numericScore(answer.score))
     .filter((score) => score !== null);
+}
+
+function getReportableInterviewScore(interview, answers = []) {
+  const evaluatedAverage = average(getFiniteScores(answers));
+  if (evaluatedAverage !== null) return evaluatedAverage;
+  if (answers.some((answer) => ['failed', 'pending'].includes(answer?.evaluationStatus))) return null;
+  return numericScore(interview?.scoreAverage);
 }
 
 function average(scores) {
@@ -27,6 +35,14 @@ function serializeEvaluation(evaluation) {
     strengths: Array.isArray(source.strengths) ? source.strengths.map(String) : [],
     weaknesses: Array.isArray(source.weaknesses) ? source.weaknesses.map(String) : [],
     improvementSuggestion: String(source.improvementSuggestion || ''),
+    nextFocus: String(source.nextFocus || ''),
+    keyConceptsCovered: Array.isArray(source.keyConceptsCovered)
+      ? source.keyConceptsCovered.map(String)
+      : [],
+    keyConceptsMissed: Array.isArray(source.keyConceptsMissed)
+      ? source.keyConceptsMissed.map(String)
+      : [],
+    scoringMethod: String(source.scoringMethod || ''),
   };
 }
 
@@ -41,7 +57,9 @@ function groupSkillScores(questions = [], answers = []) {
     const answer = answerByQuestion.get(String(question._id));
     const existing = grouped.get(skill) || { skill, scores: [], attempts: 0, bestScore: null };
     existing.attempts += answer ? 1 : 0;
-    const score = numericScore(answer?.score);
+    const score = answer?.evaluationStatus === 'failed' || answer?.evaluationStatus === 'pending'
+      ? null
+      : numericScore(answer?.score);
     if (score !== null) {
       existing.scores.push(score);
       existing.bestScore = existing.bestScore === null ? score : Math.max(existing.bestScore, score);
@@ -76,7 +94,12 @@ function buildQuestionAnalysis(questions = [], answers = []) {
       difficulty: question.difficulty,
       difficultyLabel: difficultyLabel(question.difficulty),
       questionText: question.questionText,
-      score: numericScore(answer?.score),
+      score: answer?.evaluationStatus === 'failed'
+        ? null
+        : numericScore(answer?.score),
+      fallbackScore: answer?.evaluationStatus === 'failed'
+        ? numericScore(answer?.score)
+        : null,
       evaluationStatus: answer?.evaluationStatus || null,
       answered: Boolean(answer),
       feedback: answer ? serializeEvaluation(answer.evaluation).feedback : '',
@@ -129,9 +152,10 @@ function buildReportAnalytics({ interview, questions = [], answers = [] }) {
     weaknesses.push('Add more detail, examples, and trade-offs to technical answers');
   }
 
+  const reportableScore = scoreAverage ?? getReportableInterviewScore(interview, answers);
   return {
-    overallScore: roundScore(interview?.scoreAverage) ?? scoreAverage ?? 0,
-    averageScore: scoreAverage ?? roundScore(interview?.scoreAverage) ?? 0,
+    overallScore: reportableScore,
+    averageScore: reportableScore,
     questionCount: questions.length || Number(interview?.questionCount) || 0,
     completedQuestions: answers.length,
     skillAnalysis,
@@ -199,8 +223,7 @@ async function buildHistoricalAnalytics(userId) {
 
   const completedScores = entries
     .map(({ interview, answers }) => {
-      const score = numericScore(interview.scoreAverage);
-      return score !== null ? score : average(getFiniteScores(answers));
+      return getReportableInterviewScore(interview, answers);
     })
     .filter((score) => score !== null);
   const orderedEntries = entries
@@ -208,8 +231,7 @@ async function buildHistoricalAnalytics(userId) {
     .sort((a, b) => new Date(a.interview.completedAt || a.interview.createdAt) - new Date(b.interview.completedAt || b.interview.createdAt));
   const trendScores = orderedEntries
     .map(({ interview, answers }) => {
-      const score = numericScore(interview.scoreAverage);
-      return score !== null ? score : average(getFiniteScores(answers));
+      return getReportableInterviewScore(interview, answers);
     })
     .filter((score) => score !== null);
   const firstScore = trendScores[0] ?? null;
@@ -252,8 +274,7 @@ async function buildHistoricalAnalytics(userId) {
     },
     performanceOverTime: orderedEntries
       .map(({ interview, answers }) => {
-        const score = numericScore(interview.scoreAverage);
-        const resolvedScore = score !== null ? score : average(getFiniteScores(answers));
+        const resolvedScore = getReportableInterviewScore(interview, answers);
         return resolvedScore === null
           ? null
           : {

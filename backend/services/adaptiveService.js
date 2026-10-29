@@ -11,7 +11,8 @@ function getEvaluatedAnswers(answers = []) {
     const score = Number(answer?.score ?? answer);
     const status = answer?.evaluationStatus;
     const legacyEvaluation = typeof answer?.evaluation === 'string';
-    return Number.isFinite(score) && (status !== 'pending' || legacyEvaluation);
+    return Number.isFinite(score) &&
+      (status === undefined || status === 'completed' || legacyEvaluation);
   });
 }
 

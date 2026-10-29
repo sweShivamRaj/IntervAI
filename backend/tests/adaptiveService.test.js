@@ -34,6 +34,14 @@ assert.equal(selectNextTopic({
   order: 3,
   answers: topicAnswers,
 }), 'DSA', 'weak topics should receive additional questions');
+assert.equal(
+  getTopicPerformance([
+    { topic: 'DSA', score: 20, evaluationStatus: 'failed' },
+    { topic: 'DSA', score: 90, evaluationStatus: 'completed' },
+  ], 'DSA').average,
+  90,
+  'fallback estimates must not influence adaptive difficulty'
+);
 
 const documentedProgression = computeAdaptiveDecision({
   currentDifficulty: 3,

@@ -55,10 +55,16 @@ const answerQuestion = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
+const retryEvaluation = asyncHandler(async (req, res) => {
+  validateObjectIdParam(req.params.id, 'Question');
+  const result = await interviewService.retryAnswerEvaluation(req.params.id, req.user._id);
+  res.json(result);
+});
+
 const report = asyncHandler(async (req, res) => {
   validateObjectIdParam(req.params.id, 'Interview');
   const reportData = await interviewService.getReport(req.params.id, req.user._id);
   res.json({ report: reportData });
 });
 
-module.exports = { create, list, getOne, start, questions, answer, answerQuestion, report };
+module.exports = { create, list, getOne, start, questions, answer, answerQuestion, retryEvaluation, report };

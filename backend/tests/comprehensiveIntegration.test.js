@@ -17,12 +17,15 @@ const Question = require('../models/Question');
 const Answer = require('../models/Answer');
 const SkillPerformance = require('../models/SkillPerformance');
 const FallbackQuestion = require('../models/FallbackQuestion');
+const { heuristicEvaluate } = require('../data/fallbackQuestions');
 
 const created = {
   users: [],
   interviews: [],
   fallbackQuestions: [],
 };
+const originalFetch = global.fetch;
+const originalAiConfig = { ...config.ai };
 
 async function request(base, path, options = {}) {
   const response = await fetch(`${base}${path}`, {
@@ -136,6 +139,68 @@ async function run() {
     assert.ok(started.body.currentQuestion);
     const firstQuestion = started.body.currentQuestion;
 
+    config.ai.provider = 'openai';
+    config.ai.apiKey = 'test-only-key';
+    config.ai.maxRetries = 0;
+    let failFirstEvaluation = true;
+    global.fetch = async (input, options = {}) => {
+      const url = String(input);
+      if (!url.startsWith(`${config.ai.baseUrl}/chat/completions`)) {
+        return originalFetch(input, options);
+      }
+      const payload = JSON.parse(options.body);
+      const schemaName = payload.response_format?.json_schema?.name;
+      if (schemaName === 'interview_answer_evaluation' && failFirstEvaluation) {
+        failFirstEvaluation = false;
+        return {
+          ok: false,
+          status: 429,
+          async json() {
+            return { error: { code: 'insufficient_quota', message: 'Test quota failure.' } };
+          },
+        };
+      }
+      let content;
+      if (schemaName === 'interview_question') {
+        const prompt = payload.messages[1].content;
+        const difficulty = prompt.match(/^Required difficulty: (easy|medium|hard)\./m)?.[1] || 'medium';
+        content = {
+          question: 'Explain a design choice you would make in a Node.js service and how you would test its trade-offs.',
+          topic: 'Node.js',
+          difficulty,
+          type: 'design',
+          expectedConcepts: ['design approach', 'trade-offs'],
+        };
+      } else if (schemaName === 'interview_answer_evaluation') {
+        const prompt = payload.messages[1].content;
+        const expectedLine = prompt.match(/^Expected concepts: (.+)$/m)?.[1] || '[]';
+        const expectedConcepts = JSON.parse(expectedLine);
+        content = {
+          correctness: 90,
+          relevance: 85,
+          technicalDepth: 80,
+          clarity: 90,
+          completeness: 85,
+          feedback: 'Mocked provider feedback based on the submitted answer and rubric.',
+          strengths: ['Addressed the question directly'],
+          weaknesses: ['Add a concrete example'],
+          improvementSuggestion: 'Include an implementation example and its trade-offs.',
+          nextFocus: 'Explain one implementation trade-off.',
+          keyConceptsCovered: expectedConcepts,
+          keyConceptsMissed: [],
+        };
+      } else {
+        content = { feedback: 'Mocked overall feedback.' };
+      }
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { choices: [{ message: { content: JSON.stringify(content) } }] };
+        },
+      };
+    };
+
     const otherOwner = await request(base, `/interviews/${interviewId}`, auth(candidateBToken));
     assert.equal(otherOwner.status, 404);
     const otherQuestions = await request(base, `/interviews/${interviewId}/questions`, auth(candidateBToken));
@@ -153,8 +218,31 @@ async function run() {
       interviewId, userAnswer: 'The event loop and non-blocking I/O coordinate callbacks through queues and the call stack.',
     }));
     assert.equal(firstAnswer.status, 200, JSON.stringify(firstAnswer.body));
-    assert.equal(firstAnswer.body.answer.evaluationStatus, 'completed');
+    assert.equal(firstAnswer.body.answer.evaluationStatus, 'failed');
+    assert.equal(firstAnswer.body.evaluation.scoringMethod, 'expected-concept-coverage');
+    assert.equal(firstAnswer.body.evaluation.correctness, null, 'fallback must not invent AI subscores');
     assert.ok(firstAnswer.body.nextQuestion);
+
+    const firstQuestionRecord = await Question.findById(firstQuestion._id);
+    const fallbackExpectedScore = heuristicEvaluate({
+      answer: firstAnswer.body.answer.userAnswer,
+      expectedConcepts: firstQuestionRecord.expectedConcepts,
+    }).score;
+    assert.equal(firstAnswer.body.evaluation.score, fallbackExpectedScore);
+
+    const unauthorizedRetry = await request(base, `/questions/${firstQuestion._id}/evaluation/retry`, auth(candidateBToken, 'POST'));
+    assert.equal(unauthorizedRetry.status, 404);
+    const retried = await request(base, `/questions/${firstQuestion._id}/evaluation/retry`, auth(candidateAToken, 'POST'));
+    assert.equal(retried.status, 200, JSON.stringify(retried.body));
+    assert.equal(retried.body.evaluation.status, 'completed');
+    assert.equal(retried.body.evaluation.provider, 'openai');
+    const duplicateRetry = await request(base, `/questions/${firstQuestion._id}/evaluation/retry`, auth(candidateAToken, 'POST'));
+    assert.equal(duplicateRetry.status, 200);
+    assert.equal(duplicateRetry.body.evaluation.status, 'completed');
+    const afterRetryAnswers = await Answer.find({ interviewId });
+    assert.equal(afterRetryAnswers.length, 1, 'retry must update the existing answer, not create another');
+    const retriedSkill = await SkillPerformance.findOne({ user: candidateAId, skill: 'Node.js' });
+    assert.equal(retriedSkill.attempts, 1, 'retry must not increment attempts');
 
     const duplicateAnswer = await request(base, `/questions/${firstQuestion._id}/answer`, auth(candidateAToken, 'POST', {
       interviewId, userAnswer: 'A second submission should be rejected.',
@@ -243,6 +331,7 @@ async function run() {
       adminAuthorization: 'passed',
       fallbackQuestionCrud: 'passed',
       reportQuestions: report.body.report.questions.length,
+      evaluationRetry: 'passed',
     }, null, 2));
   } finally {
     await Promise.all([
@@ -255,6 +344,8 @@ async function run() {
     ]);
     await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
     await mongoose.disconnect();
+    global.fetch = originalFetch;
+    Object.assign(config.ai, originalAiConfig);
   }
 }
 

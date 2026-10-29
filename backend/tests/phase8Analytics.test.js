@@ -46,15 +46,16 @@ const report = buildReportAnalytics({
   answers,
 });
 
-assert.equal(report.overallScore, 63.33);
-assert.equal(report.averageScore, 63.33);
+assert.equal(report.overallScore, 75, 'failed fallback scores must be excluded from the overall score');
+assert.equal(report.averageScore, 75);
 assert.equal(report.questionCount, 3);
 assert.deepEqual(report.skillAnalysis, [
   { skill: 'JavaScript', attempts: 1, averageScore: 90, bestScore: 90 },
-  { skill: 'DSA', attempts: 2, averageScore: 50, bestScore: 60 },
+  { skill: 'DSA', attempts: 2, averageScore: 60, bestScore: 60 },
 ]);
 assert.equal(report.questionAnalysis[2].difficultyLabel, 'Hard');
-assert.equal(report.questionAnalysis[2].score, 40);
+assert.equal(report.questionAnalysis[2].score, null);
+assert.equal(report.questionAnalysis[2].fallbackScore, 40);
 assert.deepEqual(report.difficultyProgression.map((item) => item.difficulty), [1, 2, 3]);
 assert.deepEqual(report.recommendedTopics, ['DSA']);
 assert.ok(report.strengths.includes('Clear explanation'));
@@ -65,7 +66,7 @@ const emptyReport = buildReportAnalytics({
   questions: [{ _id: 'empty', order: 1, topic: 'SQL', difficulty: 2, questionText: 'Explain joins.' }],
   answers: [],
 });
-assert.equal(emptyReport.overallScore, 0);
+assert.equal(emptyReport.overallScore, null);
 assert.equal(emptyReport.questionAnalysis[0].score, null);
 assert.deepEqual(emptyReport.recommendedTopics, ['SQL']);
 assert.deepEqual(buildRecommendedTopics([{ skill: 'SQL', averageScore: 45 }], ['SQL']), ['SQL']);

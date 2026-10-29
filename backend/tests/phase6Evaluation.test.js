@@ -2,10 +2,12 @@ const assert = require('node:assert/strict');
 const config = require('../config/env');
 const {
   SAFE_FAILURE_MESSAGE,
+  buildFallbackResult,
   calculateWeightedScore,
   evaluateCandidateAnswer,
   validateEvaluationResponse,
 } = require('../services/evaluationService');
+const { heuristicEvaluate } = require('../data/fallbackQuestions');
 
 const context = {
   question: {
@@ -77,6 +79,9 @@ async function run() {
                 strengths: ['Correct event loop explanation'],
                 weaknesses: ['Could add an operational example'],
                 improvementSuggestion: 'Add a production monitoring example.',
+                nextFocus: 'Explain an operational example.',
+                keyConceptsCovered: ['event loop', 'non-blocking'],
+                keyConceptsMissed: ['concurrency'],
               }),
             },
           }],
@@ -114,6 +119,32 @@ async function run() {
   assert.equal(failed.status, 'failed');
   assert.equal(failed.safeMessage, SAFE_FAILURE_MESSAGE);
   assert.ok(Number.isFinite(failed.score), 'fallback should preserve a usable score');
+  assert.equal(failed.scoringMethod, 'expected-concept-coverage');
+  assert.equal(failed.evaluation.clarity, null, 'fallback must not claim an AI clarity score');
+  assert.ok(failed.score >= 0 && failed.score <= 100);
+  const noRubricFallback = buildFallbackResult({ candidateAnswer: 'A long answer without a rubric.' });
+  assert.equal(noRubricFallback.score, null);
+  assert.equal(noRubricFallback.scoringMethod, 'unavailable');
+
+  config.ai.maxRetries = 0;
+  const originalWarn = console.warn;
+  let providerLog = '';
+  console.warn = (...args) => { providerLog += args.join(' '); };
+  global.fetch = async () => ({
+    ok: false,
+    status: 401,
+    async json() {
+      return { error: { code: 'invalid_api_key', message: 'The API key is invalid.' } };
+    },
+  });
+  const invalidKey = await evaluateCandidateAnswer({
+    ...context,
+    candidateAnswer: 'The event loop schedules callbacks after I/O completes.',
+  });
+  console.warn = originalWarn;
+  assert.equal(invalidKey.status, 'failed');
+  assert.match(providerLog, /HTTP 401.*invalid_api_key/);
+  assert.doesNotMatch(invalidKey.safeMessage, /invalid_api_key|invalid API key/i);
 
   config.ai.maxRetries = 0;
   config.ai.timeoutMs = 1;
@@ -161,8 +192,20 @@ async function run() {
     strengths: [],
     weaknesses: [],
     improvementSuggestion: 'suggestion',
+    nextFocus: 'next step',
+    keyConceptsCovered: [],
+    keyConceptsMissed: [],
   });
   assert.equal(invalidShape.valid, false);
+
+  const rubricEstimate = heuristicEvaluate({
+    answer: 'event loop and non-blocking are covered; this answer is deliberately long, but length cannot add rubric points.',
+    expectedConcepts: ['event loop', 'non-blocking', 'concurrency', 'worker threads'],
+  });
+  assert.equal(rubricEstimate.score, 50, 'fallback score must equal concept coverage and ignore answer length');
+  assert.deepEqual(rubricEstimate.matchedConcepts, ['event loop', 'non-blocking']);
+  assert.deepEqual(rubricEstimate.missedConcepts, ['concurrency', 'worker threads']);
+  assert.equal(heuristicEvaluate({ answer: 'long answer '.repeat(100), expectedConcepts: [] }).score, null);
 
   console.log('Phase 6 evaluation service tests passed.');
 }

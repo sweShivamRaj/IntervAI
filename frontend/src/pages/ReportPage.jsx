@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { getDashboard, getReport } from '../services/interviewApi.js';
+import { getDashboard, getReport, retryAnswerEvaluation } from '../services/interviewApi.js';
 import { difficultyLabel, formatDate } from '../utils/format.js';
 import { Alert, Icon, ScoreBadge, ScoreRing, Skeleton } from '../components/ui.jsx';
 import { FadeIn, StaggerList, StaggerItem, ScrollReveal, AnimatedPresenceWrapper } from '../components/motion.jsx';
@@ -22,6 +22,8 @@ export default function ReportPage() {
   const [historicalData, setHistoricalData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [retryingQuestionId, setRetryingQuestionId] = useState(null);
+  const [retryError, setRetryError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +53,20 @@ export default function ReportPage() {
       cancelled = true;
     };
   }, [id]);
+
+  async function onRetryEvaluation(questionId) {
+    setRetryingQuestionId(questionId);
+    setRetryError('');
+    try {
+      await retryAnswerEvaluation(questionId);
+      const { data } = await getReport(id);
+      setReport(data.report);
+    } catch (err) {
+      setRetryError(err.response?.data?.message || 'Evaluation retry could not be completed.');
+    } finally {
+      setRetryingQuestionId(null);
+    }
+  }
 
   if (loading) {
     return <ReportSkeleton />;
@@ -202,7 +218,13 @@ export default function ReportPage() {
             <StaggerList staggerSpeed="fast" className="divide-y divide-ink-100">
               {(report.questions || []).map((question) => (
                 <StaggerItem key={question.order}>
-                  <QuestionResult question={question} />
+                  <QuestionResult
+                    question={question}
+                    onRetry={onRetryEvaluation}
+                    retrying={retryingQuestionId === question.questionId}
+                    retryDisabled={retryingQuestionId !== null}
+                    retryError={retryError}
+                  />
                 </StaggerItem>
               ))}
             </StaggerList>
@@ -284,30 +306,41 @@ function ListBlock({ title, items, empty }) {
   );
 }
 
-function QuestionResult({ question }) {
+function QuestionResult({ question, onRetry, retrying = false, retryDisabled = false, retryError = '' }) {
   const evaluation = question.evaluation || {};
   return (
-    <article className="py-5 first:pt-0 last:pb-0">
+    <article className="min-w-0 space-y-3 py-5 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="font-medium text-ink-900">
             Q{question.order}. {question.skill || question.topic} · {difficultyLabel(question.difficulty)}
           </p>
-          <p className="mt-2 text-sm leading-6 text-ink-800">{question.questionText || question.text}</p>
+          <p className="mt-2 break-words text-sm leading-6 text-ink-800">{question.questionText || question.text}</p>
         </div>
         <div className="flex flex-col items-end gap-2"><span className="whitespace-nowrap text-sm font-bold text-accent-dark">{formatScore(question.score)}</span>{question.score != null && <ScoreBadge score={question.score} />}</div>
       </div>
       {evaluation.status === 'failed' && (
-        <p className="mt-3 inline-block rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">Fallback evaluation</p>
+        <p className="inline-block rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">{evaluation.scoringMethod === 'expected-concept-coverage' ? 'Fallback rubric estimate' : 'Evaluation unavailable'}</p>
       )}
-      {evaluation.feedback && <p className="mt-3 text-sm leading-6 text-ink-700"><span className="font-semibold text-ink-900">Feedback:</span> {evaluation.feedback}</p>}
+      {evaluation.scoringMethod === 'expected-concept-coverage' && <p className="text-xs leading-5 text-ink-700">Rubric coverage only; correctness, clarity, and technical depth were not assessed.</p>}
+      {evaluation.feedback && <p className="break-words text-sm leading-6 text-ink-700"><span className="font-semibold text-ink-900">Feedback:</span> {evaluation.feedback}</p>}
+      {(evaluation.keyConceptsCovered?.length > 0 || evaluation.keyConceptsMissed?.length > 0) && (
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+          {evaluation.keyConceptsCovered?.length > 0 && <ListBlock title="Rubric concepts covered" items={evaluation.keyConceptsCovered} empty="" />}
+          {evaluation.keyConceptsMissed?.length > 0 && <ListBlock title="Rubric concepts to address" items={evaluation.keyConceptsMissed} empty="" />}
+        </div>
+      )}
       {evaluation.strengths?.length > 0 && <p className="mt-2 text-sm text-ink-700"><span className="font-semibold text-ink-900">Strengths:</span> {evaluation.strengths.join(' · ')}</p>}
-      {evaluation.improvementSuggestion && <p className="mt-2 text-sm text-ink-700"><span className="font-semibold text-ink-900">Improve:</span> {evaluation.improvementSuggestion}</p>}
+      {evaluation.weaknesses?.length > 0 && <p className="break-words text-sm text-ink-700"><span className="font-semibold text-ink-900">Areas to improve:</span> {evaluation.weaknesses.map(String).join(' · ')}</p>}
+      {evaluation.nextFocus && <p className="break-words rounded-xl bg-accent-soft px-3 py-2 text-sm leading-6 text-ink-800"><span className="font-semibold text-accent-dark">Next focus:</span> {evaluation.nextFocus}</p>}
+      {evaluation.improvementSuggestion && <p className="break-words rounded-xl bg-ink-50 px-3 py-2 text-sm leading-6 text-ink-700"><span className="font-semibold text-ink-900">Improvement suggestion:</span> {evaluation.improvementSuggestion}</p>}
+      {evaluation.status === 'failed' && <div className="space-y-2"><button type="button" className="btn-secondary" onClick={() => onRetry(question.questionId)} disabled={retrying || retryDisabled}>{retrying ? 'Retrying evaluation…' : 'Retry evaluation'}</button>{retryError && <p className="text-sm text-red-700" role="alert">{retryError}</p>}</div>}
     </article>
   );
 }
 
 function formatScore(value) {
+  if (value === null || value === undefined || value === '') return '—';
   const score = Number(value);
   return Number.isFinite(score) ? `${Math.round(score)}%` : '—';
 }

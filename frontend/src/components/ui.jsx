@@ -112,8 +112,9 @@ export function EmptyState({ icon = 'file', title, description, action }) {
 
 /* Animated score ring — SVG stroke fills in smoothly on mount */
 export function ScoreRing({ score = 0, size = 152, label = 'Overall score', dark = false }) {
+  const hasScore = score !== null && score !== undefined && score !== '' && Number.isFinite(Number(score));
   const numericScore = Number(score);
-  const safeScore = Number.isFinite(numericScore) ? Math.max(0, Math.min(100, numericScore)) : 0;
+  const safeScore = hasScore ? Math.max(0, Math.min(100, numericScore)) : 0;
   const radius = 47;
   const circumference = 2 * Math.PI * radius;
   const tier = scoreTier(safeScore);
@@ -124,7 +125,7 @@ export function ScoreRing({ score = 0, size = 152, label = 'Overall score', dark
   const targetOffset = circumference - (safeScore / 100) * circumference;
 
   return (
-    <div className="relative shrink-0" style={{ height: size, width: size }} aria-label={`${label}: ${Math.round(safeScore)} out of 100`} role="img">
+    <div className="relative shrink-0" style={{ height: size, width: size }} aria-label={`${label}: ${hasScore ? `${Math.round(safeScore)} out of 100` : 'unavailable'}`} role="img">
       <svg className="-rotate-90" height={size} viewBox="0 0 120 120" width={size}>
         <circle cx="60" cy="60" fill="none" r={radius} stroke="#e6edf7" strokeWidth="9" />
         {reduced ? (
@@ -144,8 +145,8 @@ export function ScoreRing({ score = 0, size = 152, label = 'Overall score', dark
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">
         <div>
-          <AnimatedNumber value={Math.round(safeScore)} className={`font-display text-3xl font-semibold ${dark ? 'text-white' : 'text-ink-900'}`} />
-          <p className={`text-[0.65rem] font-bold uppercase tracking-[0.14em] ${dark ? 'text-slate-400' : 'text-ink-700'}`}>/ 100</p>
+          {hasScore ? <AnimatedNumber value={Math.round(safeScore)} className={`font-display text-3xl font-semibold ${dark ? 'text-white' : 'text-ink-900'}`} /> : <span className={`font-display text-3xl font-semibold ${dark ? 'text-white' : 'text-ink-900'}`}>—</span>}
+          {hasScore && <p className={`text-[0.65rem] font-bold uppercase tracking-[0.14em] ${dark ? 'text-slate-400' : 'text-ink-700'}`}>/ 100</p>}
         </div>
       </div>
     </div>
@@ -189,11 +190,13 @@ export function ScoreBadge({ score }) {
     strong: { label: 'Strong', className: 'bg-emerald-50 text-emerald-800 ring-emerald-200' },
     average: { label: 'Average', className: 'bg-amber-50 text-amber-900 ring-amber-200' },
     needs: { label: 'Needs improvement', className: 'bg-red-50 text-red-800 ring-red-200' },
+    unavailable: { label: 'Not scored', className: 'bg-ink-50 text-ink-700 ring-ink-200' },
   }[tier];
   return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${config.className}`}><span className="size-1.5 rounded-full bg-current" />{config.label}</span>;
 }
 
 function scoreTier(score) {
+  if (score === null || score === undefined || score === '') return 'unavailable';
   const numericScore = Number(score);
   if (numericScore >= 80) return 'strong';
   if (numericScore >= 50) return 'average';

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getInterview, getInterviewQuestions, startInterview, submitAnswer } from '../services/interviewApi.js';
+import { getInterview, getInterviewQuestions, retryAnswerEvaluation, startInterview, submitAnswer } from '../services/interviewApi.js';
 import { difficultyLabel } from '../utils/format.js';
 import { Alert, ButtonSpinner, Icon, Skeleton } from '../components/ui.jsx';
 import { FadeIn, AnimatedPresenceWrapper } from '../components/motion.jsx';
@@ -12,6 +12,9 @@ export default function InterviewSessionPage() {
   const [question, setQuestion] = useState(null);
   const [answer, setAnswer] = useState('');
   const [lastEvaluation, setLastEvaluation] = useState(null);
+  const [lastEvaluationQuestionId, setLastEvaluationQuestionId] = useState(null);
+  const [retryingEvaluation, setRetryingEvaluation] = useState(false);
+  const [retryError, setRetryError] = useState('');
   const [error, setError] = useState('');
   const [validationError, setValidationError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -54,6 +57,8 @@ export default function InterviewSessionPage() {
       const { data } = await submitAnswer(question._id, { interviewId: id, userAnswer: trimmedAnswer });
       if (data.completed) { navigate(`/interview/${id}/result`, { replace: true }); return; }
       setLastEvaluation(data.evaluation || null);
+      setLastEvaluationQuestionId(question._id);
+      setRetryError('');
       setInterview((previous) => ({ ...previous, currentDifficulty: data.nextDifficulty, completedQuestions: (previous?.completedQuestions || 0) + 1 }));
       setQuestion(data.nextQuestion);
       setAnswer('');
@@ -62,6 +67,20 @@ export default function InterviewSessionPage() {
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
+    }
+  }
+
+  async function onRetryEvaluation() {
+    if (!lastEvaluationQuestionId || retryingEvaluation) return;
+    setRetryingEvaluation(true);
+    setRetryError('');
+    try {
+      const { data } = await retryAnswerEvaluation(lastEvaluationQuestionId);
+      setLastEvaluation(data.evaluation);
+    } catch (err) {
+      setRetryError(err.response?.data?.message || 'Evaluation retry could not be completed.');
+    } finally {
+      setRetryingEvaluation(false);
     }
   }
 
@@ -99,17 +118,60 @@ export default function InterviewSessionPage() {
 
       {lastEvaluation && (
         <FadeIn>
-          <EvaluationPanel evaluation={lastEvaluation} />
+          <EvaluationPanel
+            evaluation={lastEvaluation}
+            onRetry={onRetryEvaluation}
+            retrying={retryingEvaluation}
+            retryError={retryError}
+          />
         </FadeIn>
       )}
     </div>
   );
 }
 
-function EvaluationPanel({ evaluation }) {
+function EvaluationPanel({ evaluation, onRetry, retrying = false, retryError = '' }) {
   const strengths = Array.isArray(evaluation.strengths) ? evaluation.strengths : [];
   const weaknesses = Array.isArray(evaluation.weaknesses) ? evaluation.weaknesses : [];
-  return <section className="rounded-2xl border border-accent/25 bg-accent-soft/45 p-5 sm:p-6" aria-live="polite"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="eyebrow">Evaluation ready</p><h2 className="mt-2 font-display text-3xl font-semibold text-ink-900">{evaluation.score == null ? 'Pending' : `${evaluation.score}/100`}</h2></div>{evaluation.status === 'failed' && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 ring-1 ring-amber-200">Fallback evaluation</span>}</div>{evaluation.safeMessage && <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{evaluation.safeMessage}</p>}{evaluation.feedback && <div className="mt-5"><h3 className="text-sm font-bold text-ink-900">Feedback</h3><p className="mt-1 text-sm leading-6 text-ink-800">{evaluation.feedback}</p></div>}<div className="mt-5 grid gap-4 sm:grid-cols-2">{strengths.length > 0 && <div><h3 className="text-sm font-bold text-ink-900">What worked</h3><ul className="mt-2 space-y-1 text-sm text-ink-800">{strengths.map((item) => <li key={item} className="flex gap-2"><Icon name="check" size={15} className="mt-0.5 text-accent-dark" />{item}</li>)}</ul></div>}{weaknesses.length > 0 && <div><h3 className="text-sm font-bold text-ink-900">Next focus</h3><ul className="mt-2 space-y-1 text-sm text-ink-800">{weaknesses.map((item) => <li key={item} className="flex gap-2"><Icon name="arrowUp" size={15} className="mt-0.5 text-amber-700" />{item}</li>)}</ul></div>}</div>{evaluation.improvementSuggestion && <div className="mt-5 rounded-xl bg-white/75 p-4"><h3 className="text-sm font-bold text-accent-dark">Improvement suggestion</h3><p className="mt-1 text-sm leading-6 text-ink-800">{evaluation.improvementSuggestion}</p></div>}</section>;
+  const covered = Array.isArray(evaluation.keyConceptsCovered) ? evaluation.keyConceptsCovered : [];
+  const missed = Array.isArray(evaluation.keyConceptsMissed) ? evaluation.keyConceptsMissed : [];
+  const failed = evaluation.status === 'failed';
+  return (
+    <section className="min-w-0 space-y-5 rounded-2xl border border-accent/25 bg-accent-soft/45 p-5 sm:p-6" aria-live="polite">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="eyebrow">{failed ? 'Evaluation unavailable' : evaluation.provider === 'mock' ? 'Mock evaluation' : 'Evaluation ready'}</p>
+          <h2 className="mt-2 font-display text-3xl font-semibold text-ink-900">
+            {evaluation.score == null ? 'Score unavailable' : `${evaluation.score}/100`}
+          </h2>
+          {evaluation.scoringMethod === 'expected-concept-coverage' && (
+            <p className="mt-1 text-xs text-ink-700">Rubric coverage estimate only; answer quality was not assessed.</p>
+          )}
+        </div>
+        {failed && <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 ring-1 ring-amber-200">{evaluation.scoringMethod === 'expected-concept-coverage' ? 'Fallback rubric estimate' : 'Evaluation unavailable'}</span>}
+      </header>
+
+      {evaluation.safeMessage && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-900">{evaluation.safeMessage}</p>}
+      {retryError && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{retryError}</p>}
+      {evaluation.feedback && <section className="min-w-0"><h3 className="text-sm font-bold text-ink-900">Feedback</h3><p className="mt-1 break-words text-sm leading-6 text-ink-800">{evaluation.feedback}</p></section>}
+
+      {(covered.length > 0 || missed.length > 0) && (
+        <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+          {covered.length > 0 && <ConceptList title="Rubric concepts covered" items={covered} icon="check" />}
+          {missed.length > 0 && <ConceptList title="Rubric concepts to address" items={missed} icon="arrowUp" />}
+        </div>
+      )}
+      {strengths.length > 0 && <ConceptList title="What worked" items={strengths} icon="check" />}
+      {weaknesses.length > 0 && <ConceptList title="Areas to improve" items={weaknesses} icon="arrowUp" />}
+      {evaluation.nextFocus && <section className="min-w-0 rounded-xl bg-white/75 p-4"><h3 className="text-sm font-bold text-accent-dark">Next focus</h3><p className="mt-1 break-words text-sm leading-6 text-ink-800">{evaluation.nextFocus}</p></section>}
+      {evaluation.improvementSuggestion && <section className="min-w-0 rounded-xl bg-white/75 p-4"><h3 className="text-sm font-bold text-accent-dark">Improvement suggestion</h3><p className="mt-1 break-words text-sm leading-6 text-ink-800">{evaluation.improvementSuggestion}</p></section>}
+      {failed && <div><button type="button" className="btn-secondary" onClick={onRetry} disabled={retrying}>{retrying ? <><ButtonSpinner /> Retrying evaluation…</> : 'Retry evaluation'}</button></div>}
+    </section>
+  );
+}
+
+function ConceptList({ title, items, icon }) {
+  return <section className="min-w-0"><h3 className="text-sm font-bold text-ink-900">{title}</h3><ul className="mt-2 space-y-2 text-sm leading-6 text-ink-800">{items.map((item) => <li key={item} className="flex min-w-0 items-start gap-2"><Icon name={icon} size={15} className="mt-1 shrink-0 text-accent-dark" /><span className="min-w-0 break-words">{item}</span></li>)}</ul></section>;
 }
 
 function SessionSkeleton() { return <div className="mx-auto max-w-3xl space-y-6" role="status"><div className="flex justify-between"><div><Skeleton className="h-3 w-28 skeleton-shimmer" /><Skeleton className="mt-3 h-9 w-72 max-w-full skeleton-shimmer" /></div><Skeleton className="h-5 w-28 skeleton-shimmer" /></div><Skeleton className="h-2 w-full skeleton-shimmer" /><Skeleton className="h-[36rem] w-full skeleton-shimmer" /></div>; }

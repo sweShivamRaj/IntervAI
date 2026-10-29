@@ -10,6 +10,8 @@ export const startInterview = (id) => api.post(`/interviews/${id}/start`);
 export const getInterviewQuestions = (id) => api.get(`/interviews/${id}/questions`);
 export const submitAnswer = (questionId, payload) =>
   api.post(`/questions/${questionId}/answer`, payload);
+export const retryAnswerEvaluation = (questionId) =>
+  api.post(`/questions/${questionId}/evaluation/retry`);
 export const getReport = (id) => api.get(`/interviews/${id}/report`);
 export const getAnalyticsOverview = () => api.get('/analytics/overview');
 export const getSkillAnalytics = () => api.get('/analytics/skills');

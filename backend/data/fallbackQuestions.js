@@ -376,37 +376,45 @@ function getFallbackQuestion({ topic, skill, difficulty, usedQuestionTexts = [] 
 
 function heuristicEvaluate({ answer, expectedConcepts = [] }) {
   const normalizedAnswer = String(answer || '').trim();
-  const words = normalizedAnswer.split(/\s+/).filter(Boolean);
-  const lowerAnswer = normalizedAnswer.toLowerCase();
+  const normalizedText = ` ${normalizeConceptText(normalizedAnswer)} `;
+  const concepts = [...new Set(expectedConcepts.map(String).map((item) => item.trim()).filter(Boolean))];
+  const matchedConcepts = concepts.filter((concept) => {
+    const normalizedConcept = normalizeConceptText(concept);
+    return normalizedConcept && normalizedText.includes(` ${normalizedConcept} `);
+  });
+  const missedConcepts = concepts.filter((concept) => !matchedConcepts.includes(concept));
+  const score = concepts.length
+    ? Math.round((matchedConcepts.length / concepts.length) * 100)
+    : null;
 
-  const matchedConcepts = expectedConcepts.filter((concept) =>
-    lowerAnswer.includes(String(concept).toLowerCase())
-  );
-
-  const conceptScore = expectedConcepts.length
-    ? (matchedConcepts.length / expectedConcepts.length) * 70
-    : 0;
-
-  const detailScore = Math.min(30, words.length * 0.75);
-
-  const score = Math.max(
-    0,
-    Math.min(100, Math.round(conceptScore + detailScore))
-  );
-
-  const evaluation = matchedConcepts.length
-    ? `Your answer covered ${matchedConcepts.length} of ${expectedConcepts.length} key concepts.`
-    : 'Your answer needs more coverage of the basic concepts.';
+  const evaluation = concepts.length
+    ? `Rubric coverage estimate: ${matchedConcepts.length} of ${concepts.length} expected concepts (${score}%). This fallback checks for concept phrases only; it does not assess correctness, clarity, or technical depth.`
+    : 'A rubric-based score is unavailable because this question has no expected concepts.';
 
   return {
     score,
     evaluation,
     feedback: evaluation,
+    matchedConcepts,
+    missedConcepts,
     strengths: matchedConcepts.length
-      ? ['Mentioned relevant concepts']
+      ? matchedConcepts.map((concept) => `Mentioned: ${concept}`)
       : [],
-    improvements: ['Add a simple example if possible'],
+    improvements: missedConcepts.length
+      ? missedConcepts.map((concept) => `Review: ${concept}`)
+      : concepts.length
+        ? ['Add a concrete example to demonstrate understanding.']
+        : ['Add an expected-concepts rubric before using fallback scoring.'],
   };
+}
+
+function normalizeConceptText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFKC')
+    .replace(/[^a-z0-9+#.]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 module.exports = {

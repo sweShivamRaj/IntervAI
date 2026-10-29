@@ -407,7 +407,11 @@ async function submitAnswer(questionId, userId, payload = {}) {
   });
   const nextDifficulty = decision.nextDifficulty;
 
-  recordDifficultyProgression(interview, question, answer.score);
+  recordDifficultyProgression(
+    interview,
+    question,
+    answer.evaluationStatus === 'completed' ? answer.score : null
+  );
   interview.topicDifficulties = interview.topicDifficulties || [];
   setTopicDifficulty(
     interview.topicDifficulties,
@@ -418,7 +422,7 @@ async function submitAnswer(questionId, userId, payload = {}) {
     setTopicDifficulty(interview.topicDifficulties, nextTopic, nextDifficulty);
   }
 
-  if (Number.isFinite(answer.score)) {
+  if (answer.evaluationStatus === 'completed' && Number.isFinite(answer.score)) {
     await updateSkillPerformance(
       userId,
       question.topic,
@@ -457,6 +461,8 @@ async function submitAnswer(questionId, userId, payload = {}) {
     evaluation: {
       score: answer.score,
       status: answer.evaluationStatus,
+      provider: evaluationResult.provider,
+      scoringMethod: evaluationResult.scoringMethod || answer.evaluation?.scoringMethod || '',
       ...serializeEvaluation(answer.evaluation),
       // Keep feedback as a compatibility alias for the earlier frontend/API shape.
       feedback: answer.evaluation?.feedback || SAFE_FAILURE_MESSAGE,
@@ -470,6 +476,143 @@ async function submitAnswer(questionId, userId, payload = {}) {
   };
 }
 
+async function retryAnswerEvaluation(questionId, userId) {
+  if (!mongoose.isValidObjectId(questionId)) {
+    throw new AppError('Question not found.', 404);
+  }
+
+  const question = await Question.findById(questionId);
+  if (!question) throw new AppError('Question not found.', 404);
+  const interview = await getInterviewForUser(question.interviewId, userId);
+  let answer = await Answer.findOne({ questionId: question._id });
+  if (!answer) throw new AppError('Answer not found.', 404);
+
+  if (answer.evaluationStatus === 'completed') {
+    return serializeEvaluationRetry(answer);
+  }
+  if (answer.evaluationStatus === 'pending') {
+    throw new AppError('Evaluation is already in progress.', 409, 'EVALUATION_PENDING');
+  }
+
+  answer = await Answer.findOneAndUpdate(
+    { _id: answer._id, evaluationStatus: 'failed' },
+    {
+      $set: {
+        evaluationStatus: 'pending',
+        evaluation: { feedback: 'Evaluation retry is in progress.' },
+      },
+    },
+    { returnDocument: 'after' }
+  );
+  if (!answer) {
+    const latest = await Answer.findOne({ questionId: question._id });
+    if (latest?.evaluationStatus === 'completed') return serializeEvaluationRetry(latest);
+    throw new AppError('Evaluation is already in progress.', 409, 'EVALUATION_PENDING');
+  }
+
+  const evaluationContext = {
+    question,
+    expectedConcepts: question.expectedConcepts,
+    candidateAnswer: answer.userAnswer,
+    candidateRole: interview.jobRole,
+    topic: question.topic,
+    difficulty: question.difficulty,
+  };
+  let result;
+  try {
+    result = await evaluateCandidateAnswer(evaluationContext);
+  } catch (error) {
+    console.warn(`[interviewService] Evaluation retry failed: ${error.message}`);
+    result = buildFallbackResult(evaluationContext, error.message);
+  }
+
+  answer.score = result.score ?? null;
+  answer.evaluationStatus = result.status === 'completed' ? 'completed' : 'failed';
+  answer.evaluation = result.evaluation;
+  await answer.save();
+
+  recordDifficultyProgression(interview, question, answer.score);
+  const answers = await Answer.find({ interviewId: interview._id }).sort({ submittedAt: 1 });
+  const questions = await Question.find({ interviewId: interview._id }).sort({ order: 1 });
+  const analytics = buildReportAnalytics({ interview, questions, answers });
+  if (Number.isFinite(analytics.averageScore)) {
+    interview.scoreAverage = Math.round(analytics.averageScore);
+  }
+  if (interview.summary) {
+    interview.summary.strengths = analytics.strengths;
+    interview.summary.weaknesses = analytics.weaknesses;
+    interview.summary.recommendedTopics = analytics.recommendedTopics;
+  }
+  await interview.save();
+  await rebuildSkillPerformance(userId, question.topic);
+
+  return serializeEvaluationRetry(answer, result.safeMessage);
+}
+
+function serializeEvaluationRetry(answer, safeMessage) {
+  return {
+    answer: {
+      _id: answer._id,
+      interviewId: answer.interviewId,
+      questionId: answer.questionId,
+      userAnswer: answer.userAnswer,
+      score: answer.score,
+      evaluationStatus: answer.evaluationStatus,
+      evaluation: answer.evaluation,
+      submittedAt: answer.submittedAt,
+    },
+    evaluation: {
+      score: answer.score,
+      status: answer.evaluationStatus,
+      provider: answer.evaluation?.scoringMethod === 'ai-weighted-rubric'
+        ? 'openai'
+        : answer.evaluation?.scoringMethod === 'mock-weighted-rubric'
+          ? 'mock'
+          : 'fallback',
+      scoringMethod: answer.evaluation?.scoringMethod || '',
+      ...serializeEvaluation(answer.evaluation),
+      ...(safeMessage ? { safeMessage } : {}),
+    },
+  };
+}
+
+async function rebuildSkillPerformance(userId, skill) {
+  const interviews = await Interview.find({ user: userId }).select('_id');
+  const questions = await Question.find({
+    interviewId: { $in: interviews.map((item) => item._id) },
+    topic: skill,
+  }).select('_id interviewId difficulty');
+  if (!questions.length) return;
+
+  const questionById = new Map(questions.map((item) => [String(item._id), item]));
+  const answers = await Answer.find({
+    questionId: { $in: questions.map((item) => item._id) },
+    score: { $ne: null },
+    evaluationStatus: 'completed',
+  }).sort({ submittedAt: 1 });
+  const scoredAnswers = answers.filter((item) => Number.isFinite(Number(item.score)));
+  const record = await SkillPerformance.findOne({
+    skill,
+    $or: [{ user: userId }, { userId }],
+  }) || new SkillPerformance({ user: userId, userId, skill });
+
+  record.attempts = scoredAnswers.length;
+  record.averageScore = scoredAnswers.length
+    ? Math.round(scoredAnswers.reduce((sum, item) => sum + Number(item.score), 0) / scoredAnswers.length)
+    : 0;
+  record.bestScore = scoredAnswers.length
+    ? Math.max(...scoredAnswers.map((item) => Number(item.score)))
+    : 0;
+  record.history = scoredAnswers.slice(-50).map((item) => ({
+    interview: item.interviewId,
+    score: Number(item.score),
+    date: item.submittedAt,
+  }));
+  const latestQuestion = questionById.get(String(scoredAnswers.at(-1)?.questionId));
+  if (latestQuestion) record.lastDifficulty = latestQuestion.difficulty;
+  await record.save();
+}
+
 async function completeInterview(interview, answers) {
   const completedAnswers = answers || (await Answer.find({ interviewId: interview._id }));
   const questions = await Question.find({ interviewId: interview._id }).sort({ order: 1 });
@@ -478,32 +621,38 @@ async function completeInterview(interview, answers) {
     questions,
     answers: completedAnswers,
   });
-  const average = Math.round(reportAnalytics.averageScore);
+  const average = Number.isFinite(reportAnalytics.averageScore)
+    ? Math.round(reportAnalytics.averageScore)
+    : null;
 
   let recommendation = 'Keep practicing consistently across your selected skills.';
-  if (average >= 80) recommendation = 'Strong performance — try harder difficulty next session.';
-  else if (average < 50) recommendation = 'Focus on fundamentals and review weak skill areas.';
+  if (average !== null && average >= 80) recommendation = 'Strong performance — try harder difficulty next session.';
+  else if (average !== null && average < 50) recommendation = 'Focus on fundamentals and review weak skill areas.';
 
-  let overallFeedback = reportAnalytics.averageScore >= 80
+  let overallFeedback = average === null
+    ? 'A reliable score is unavailable because one or more answers could not be evaluated.'
+    : reportAnalytics.averageScore >= 80
     ? 'Strong overall performance. Keep building depth with production examples and trade-off discussions.'
     : reportAnalytics.averageScore < 50
       ? 'Review the fundamentals in the recommended topics, then practice explaining each concept with a small example.'
       : 'You have a developing foundation. Strengthen the recommended topics and make each answer more precise with implementation examples.';
   let overallFeedbackStatus = 'failed';
-  try {
-    const feedbackResult = await generateOverallFeedback({
-      jobRole: interview.jobRole,
-      overallScore: reportAnalytics.overallScore,
-      skillAnalysis: reportAnalytics.skillAnalysis,
-      strengths: reportAnalytics.strengths,
-      weaknesses: reportAnalytics.weaknesses,
-      recommendedTopics: reportAnalytics.recommendedTopics,
-    });
-    overallFeedback = feedbackResult.feedback || overallFeedback;
-    overallFeedbackStatus = feedbackResult.status === 'completed' ? 'completed' : 'failed';
-  } catch (error) {
-    // Report generation must never make a completed interview unavailable.
-    console.warn(`[interviewService] Overall feedback failed; using safe fallback: ${error.message}`);
+  if (average !== null) {
+    try {
+      const feedbackResult = await generateOverallFeedback({
+        jobRole: interview.jobRole,
+        overallScore: reportAnalytics.overallScore,
+        skillAnalysis: reportAnalytics.skillAnalysis,
+        strengths: reportAnalytics.strengths,
+        weaknesses: reportAnalytics.weaknesses,
+        recommendedTopics: reportAnalytics.recommendedTopics,
+      });
+      overallFeedback = feedbackResult.feedback || overallFeedback;
+      overallFeedbackStatus = feedbackResult.status === 'completed' ? 'completed' : 'failed';
+    } catch (error) {
+      // Report generation must never make a completed interview unavailable.
+      console.warn(`[interviewService] Overall feedback failed; using safe fallback: ${error.message}`);
+    }
   }
 
   interview.status = 'completed';
@@ -560,6 +709,7 @@ async function buildReport(interview, answers) {
     questions: questions.map((question) => {
       const answer = answerByQuestion.get(String(question._id));
       return {
+        questionId: question._id,
         order: question.order,
         topic: question.topic,
         skill: question.topic,
@@ -694,6 +844,14 @@ function serializeEvaluation(evaluation) {
     strengths: Array.isArray(source.strengths) ? source.strengths.map(String) : [],
     weaknesses: Array.isArray(source.weaknesses) ? source.weaknesses.map(String) : [],
     improvementSuggestion: String(source.improvementSuggestion || ''),
+    nextFocus: String(source.nextFocus || ''),
+    keyConceptsCovered: Array.isArray(source.keyConceptsCovered)
+      ? source.keyConceptsCovered.map(String)
+      : [],
+    keyConceptsMissed: Array.isArray(source.keyConceptsMissed)
+      ? source.keyConceptsMissed.map(String)
+      : [],
+    scoringMethod: String(source.scoringMethod || ''),
   };
 }
 
@@ -734,6 +892,7 @@ module.exports = {
   startInterview,
   getInterviewQuestions,
   submitAnswer,
+  retryAnswerEvaluation,
   getReport,
   getInterviewDetail,
 };
