@@ -177,7 +177,17 @@ async function callOpenAIChat(messages, options = {}) {
       body: JSON.stringify({ model: config.ai.model, messages, ...options }),
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(`AI provider HTTP ${response.status}`);
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => null);
+      const providerError = errorBody?.error || {};
+      const detail = [providerError.code, providerError.message]
+        .filter(Boolean)
+        .join(': ')
+        .slice(0, 500);
+      throw new Error(
+        `AI provider HTTP ${response.status}${detail ? ` (${detail})` : ''}`
+      );
+    }
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     if (Array.isArray(content)) return content.map((part) => part.text || '').join('').trim();
