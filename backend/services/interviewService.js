@@ -12,6 +12,7 @@ const {
   SAFE_FAILURE_MESSAGE,
 } = require('./evaluationService');
 const { generateOverallFeedback } = require('./reportService');
+const config = require('../config/env');
 const { buildReportAnalytics } = require('./analyticsService');
 const {
   clampDifficulty,
@@ -616,7 +617,41 @@ async function getReport(interviewId, userId) {
     throw new AppError('Report available only after interview completion.', 400);
   }
   const answers = await Answer.find({ interviewId: interview._id }).sort({ submittedAt: 1 });
+  await retryOverallFeedback(interview, answers);
   return buildReport(interview, answers);
+}
+
+async function retryOverallFeedback(interview, answers) {
+  const provider = String(config.ai.provider || '').trim().toLowerCase();
+  if (
+    interview.summary?.overallFeedbackStatus !== 'failed' ||
+    provider !== 'openai' ||
+    !config.ai.apiKey
+  ) {
+    return;
+  }
+
+  try {
+    const questions = await Question.find({ interviewId: interview._id }).sort({ order: 1 });
+    const analytics = buildReportAnalytics({ interview, questions, answers });
+    const result = await generateOverallFeedback({
+      jobRole: interview.jobRole,
+      overallScore: analytics.overallScore,
+      skillAnalysis: analytics.skillAnalysis,
+      strengths: analytics.strengths,
+      weaknesses: analytics.weaknesses,
+      recommendedTopics: analytics.recommendedTopics,
+    });
+
+    if (result.status === 'completed' && result.feedback) {
+      interview.summary.overallFeedback = result.feedback;
+      interview.summary.overallFeedbackStatus = 'completed';
+      await interview.save();
+    }
+  } catch (error) {
+    // Keep the existing safe summary available if the provider is still down.
+    console.warn(`[interviewService] Overall feedback retry failed: ${error.message}`);
+  }
 }
 
 async function getInterviewDetail(interviewId, userId, userRole) {
